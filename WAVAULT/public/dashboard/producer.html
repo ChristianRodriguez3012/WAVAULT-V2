@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Productor - WAVAULT</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <script>
+    // Control de acceso
+    const usuarioActivo = JSON.parse(localStorage.getItem('usuarioActivo'));
+    if (!usuarioActivo || usuarioActivo.rol !== 'productor') {
+      alert('Acceso denegado. Inicia sesión como productor.');
+      window.location.href = '../login.html';
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>🎧 WAVAULT - Productor</h1>
+    <nav>
+      <a href="#" data-seccion="feed">Feed</a>
+      <a href="#" data-seccion="misBeats">Mis Beats</a>
+      <a href="#" data-seccion="subir">Subir Beat</a>
+      <a href="#" data-seccion="perfil">Mi Perfil</a>
+      <a href="#" onclick="cerrarSesion()">Cerrar Sesión</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ========== SECCIÓN: FEED ========== -->
+    <section id="feedSection" class="productor-section">
+      <div class="search-bar">
+        <input type="text" id="buscarBeatsProductor" placeholder="Buscar beats..." />
+      </div>
+      <div id="beatsProductor" class="beat-feed"></div>
+    </section>
+
+    <!-- ========== SECCIÓN: MIS BEATS ========== -->
+    <section id="misBeatsSection" class="productor-section" style="display:none;">
+      <h2>🎵 Mis Beats</h2>
+      <div id="misBeatsList"></div>
+    </section>
+
+    <!-- ========== SECCIÓN: SUBIR BEAT ========== -->
+    <section id="subirSection" class="productor-section" style="display:none;">
+      <h2>📤 Subir Nuevo Beat</h2>
+      <form id="formSubirBeat" class="upload-form">
+        <input type="text" id="tituloBeat" placeholder="Título del Beat" required />
+        <input type="number" id="precioBeat" placeholder="Precio en $" required />
+        <label for="archivoBeat" id="archivoLabel">📁 Selecciona un archivo de audio</label>
+        <input type="file" id="archivoBeat" accept="audio/mp3" required />
+        <button type="submit">Subir</button>
+      </form>
+    </section>
+
+    <!-- ========== SECCIÓN: PERFIL ========== -->
+    <section id="perfilSection" class="productor-section" style="display:none;">
+      <h2>👤 Mi Perfil</h2>
+      <p><strong>Email:</strong> <span id="productorEmail">-</span></p>
+      <h3>📈 Historial de Ventas</h3>
+      <p>Ventas realizadas: <span id="ventasTotales">0</span></p>
+    </section>
+  </main>
+
+  <!-- ✅ Modal de Confirmación -->
+  <div id="modalConfirmacion" class="modal" style="display:none;">
+    <div class="modal-contenido">
+      <p id="mensajeModal"></p>
+      <button onclick="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Script principal -->
+  <script src="../assets/js/producer.js"></script>
+  <script>
+    // Mostrar email del productor y activar navegación
+    document.addEventListener("DOMContentLoaded", function () {
+      const usuario = JSON.parse(localStorage.getItem('usuarioActivo'));
+      if (usuario) {
+        document.getElementById("productorEmail").textContent = usuario.email;
+      }
+
+      document.querySelectorAll("a[data-seccion]").forEach(link => {
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          const seccion = this.getAttribute("data-seccion");
+          if (typeof mostrarSeccion === 'function') {
+            mostrarSeccion(seccion);
+          } else {
+            console.error("mostrarSeccion no está definida.");
+          }
+        });
+      });
+    });
+
+    function cerrarSesion() {
+      localStorage.removeItem('usuarioActivo');
+      window.location.href = '../login.html';
+    }
+
+    // Función global para usar en cualquier parte del sitio
+    function mostrarModal(mensaje) {
+      document.getElementById("mensajeModal").textContent = mensaje;
+      document.getElementById("modalConfirmacion").style.display = "flex";
+    }
+
+    function cerrarModal() {
+      document.getElementById("modalConfirmacion").style.display = "none";
+    }
+
+    // Actualizar nombre del archivo seleccionado en el formulario de subida
+    document.getElementById("archivoBeat").addEventListener("change", function () {
+      const label = document.getElementById("archivoLabel");
+      const fileName = this.files[0]?.name || "📁 Selecciona un archivo de audio";
+      label.textContent = fileName;
+    });
+  </script>
+</body>
+</html>

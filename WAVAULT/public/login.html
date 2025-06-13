@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Iniciar Sesión - WAVAULT</title>
+  <link rel="stylesheet" href="assets/css/style.css"/>
+</head>
+<body>
+  <main class="auth-container">
+    <h2>Iniciar Sesión</h2>
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Correo electrónico" required />
+      <input type="password" id="loginPassword" placeholder="Contraseña" required />
+      <button type="submit">Entrar</button>
+    </form>
+    <p>¿No tienes cuenta? <a href="register.html">Regístrate aquí</a></p>
+  </main>
+
+  <script>
+    document.getElementById("loginForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
+
+      if (!email || !password) {
+        return alert("Por favor, completa todos los campos.");
+      }
+
+      try {
+        const response = await fetch("/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          return alert(data.error || "Error al iniciar sesión.");
+        }
+
+        // Guardar datos de sesión localmente
+        localStorage.setItem("usuarioActivo", JSON.stringify(data));
+
+        // Redirigir según rol
+        if (data.rol === "cliente") {
+          window.location.href = "dashboard/client.html";
+        } else if (data.rol === "productor") {
+          window.location.href = "dashboard/producer.html";
+        } else {
+          alert("Rol desconocido.");
+        }
+      } catch (err) {
+        alert("Error de conexión con el servidor.");
+      }
+    });
+  </script>
+</body>
+</html>
