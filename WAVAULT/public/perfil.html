@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Perfil del Productor - WAVAULT</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>👤 Perfil del Productor</h1>
+    <nav>
+      <a href="#" id="inicioLink">Inicio</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="productor-section">
+      <h2 id="nombreProductor">Productor</h2>
+      <div id="beatsProductor" class="beat-feed"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 WAVAULT</p>
+  </footer>
+
+  <script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioActivo"));
+    const inicioLink = document.getElementById("inicioLink");
+
+    if (usuario?.rol === "productor") {
+      inicioLink.href = "/dashboard/producer.html";
+    } else if (usuario?.rol === "cliente") {
+      inicioLink.href = "/dashboard/client.html";
+    } else {
+      inicioLink.href = "/login.html";
+    }
+
+    async function cargarBeatsDelProductor() {
+      const params = new URLSearchParams(window.location.search);
+      const productor = params.get('productor');
+      if (!productor) return;
+
+      document.getElementById("nombreProductor").textContent = `🎧 Beats de ${productor}`;
+
+      try {
+        const res = await fetch('/beats');
+        const beats = await res.json();
+        const filtrados = beats.filter(b => b.producer === productor);
+
+        const contenedor = document.getElementById("beatsProductor");
+        if (!filtrados.length) {
+          contenedor.innerHTML = "<p>No hay beats publicados por este productor.</p>";
+          return;
+        }
+
+        filtrados.forEach(beat => {
+          const cover = beat.cover?.startsWith("uploads/") ? `/${beat.cover}` : "assets/img/placeholder.jpg";
+          const audio = beat.audio?.startsWith("uploads/") ? `/${beat.audio}` : null;
+          const tags = beat.tags ? beat.tags.split(',').map(t => `#${t.trim()}`).join(' ') : '';
+
+          const div = document.createElement("div");
+          div.className = "beat-card";
+          div.innerHTML = `
+            <img src="${cover}" alt="${beat.title}" />
+            <div class="beat-info">
+              <h3><a href="/beat.html?id=${beat.id}">${beat.title}</a></h3>
+              <p>💰 $${beat.price}</p>
+              <p>🏷️ ${tags}</p>
+              <p>🎼 ${beat.bpm} BPM • ${beat.key}</p>
+              ${audio ? `<audio controls src="${audio}"></audio>` : `<p><em>Sin audio.</em></p>`}
+            </div>
+          `;
+          contenedor.appendChild(div);
+        });
+      } catch (err) {
+        console.error("❌ Error al cargar beats del productor:", err);
+      }
+    }
+
+    cargarBeatsDelProductor();
+  </script>
+</body>
+</html>

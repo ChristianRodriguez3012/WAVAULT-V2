@@ -81,12 +81,21 @@ nav a:hover {
   font-size: 1.1rem;
 }
 
+.beat-info h3 a {
+  color: #1a1a1a;
+  text-decoration: none;
+}
+
+.beat-info h3 a:hover {
+  text-decoration: underline;
+}
+
 .beat-info p {
   color: #888;
   font-size: 0.9rem;
 }
 
-/* ========== AUTH PAGES (Login / Register) ========== */
+/* ========== AUTH PAGES ========== */
 .auth-container {
   max-width: 400px;
   margin: 4rem auto;
@@ -151,7 +160,8 @@ nav a:hover {
 
 .upload-form input[type="text"],
 .upload-form input[type="number"],
-.upload-form input[type="file"] {
+.upload-form input[type="file"],
+.upload-form select {
   width: 100%;
   padding: 0.75rem;
   margin-bottom: 1.25rem;
@@ -178,6 +188,49 @@ nav a:hover {
 
 .upload-form button:hover {
   background: #333;
+}
+
+/* ========== HISTORIAL DE VENTAS ========== */
+.ventas-table {
+  width: 100%;
+  max-width: 100%;
+  margin: 2rem auto;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 8px rgba(0,0,0,0.05);
+}
+
+.ventas-table th,
+.ventas-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.ventas-table th {
+  background: #1a1a1a;
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+
+.ventas-table td img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.ventas-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ventas-table tbody tr:hover {
+  background: #f4f4f4;
 }
 
 /* ========== FOOTER ========== */
@@ -243,4 +296,142 @@ footer {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* ... (todo tu CSS original hasta la sección del reproductor) ... */
+
+/* ========== REPRODUCTOR GLOBAL ========== */
+#reproductorGlobal {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #1a1a1a;
+  color: white;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  z-index: 1001;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+#reproductorGlobal img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+}
+
+.player-info span {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 2;
+  min-width: 300px;
+}
+
+.player-controls button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: transform 0.2s ease;
+}
+
+.player-controls button:hover {
+  transform: scale(1.2);
+}
+
+#playPauseBtn {
+  font-size: 1.5rem;
+}
+
+#progressBar {
+  width: 100%;
+  max-width: 300px;
+  margin: 0 1rem;
+  flex: 2;
+}
+
+#volumeControl {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+/* ... sigue tu sección de beat-detalle sin cambios ... */
+
+
+/* ========== BEAT DETALLE (beat.html) ========== */
+.beat-detalle-container {
+  padding: 2rem;
+  max-width: 900px;
+  margin: auto;
+}
+
+.beat-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.beat-detalle img {
+  width: 100%;
+  max-width: 300px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.beat-detalle .info {
+  flex: 1;
+  min-width: 250px;
+}
+
+.beat-detalle .info h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.beat-detalle .info p {
+  margin: 0.3rem 0;
+  color: #555;
+}
+
+.beat-detalle .info audio {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.beat-detalle .info button {
+  background: #1a1a1a;
+  color: white;
+  padding: 0.7rem 1.5rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.beat-detalle .info button:hover {
+  background: #333;
 }

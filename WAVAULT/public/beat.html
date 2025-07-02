@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beat - WAVAULT</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🎧 WAVAULT</h1>
+    <nav>
+      <a href="#" id="inicioLink">Inicio</a>
+      <a href="/perfil.html?productor=" id="perfilLink">Perfil del Productor</a>
+    </nav>
+  </header>
+
+  <main class="beat-detalle-container">
+    <div id="detalleBeat">
+      <p>Cargando beat...</p>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+  </footer>
+
+  <script>
+    const usuario = JSON.parse(localStorage.getItem("usuarioActivo"));
+    const inicioLink = document.getElementById("inicioLink");
+
+    if (usuario?.rol === "productor") {
+      inicioLink.href = "/dashboard/producer.html";
+    } else if (usuario?.rol === "cliente") {
+      inicioLink.href = "/dashboard/client.html";
+    } else {
+      inicioLink.href = "/login.html";
+    }
+
+    async function cargarBeat() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      if (!id) return;
+
+      try {
+        const res = await fetch(`/beats?id=${id}`);
+        const data = await res.json();
+        const beat = Array.isArray(data) ? data[0] : data;
+
+        const contenedor = document.getElementById("detalleBeat");
+        if (!beat) {
+          contenedor.innerHTML = "<p>❌ Beat no encontrado.</p>";
+          return;
+        }
+
+        const cover = beat.cover?.startsWith("uploads/") ? `/${beat.cover}` : "assets/img/placeholder.jpg";
+        const audio = beat.audio?.startsWith("uploads/") ? `/${beat.audio}` : null;
+
+        const puedeComprar = usuario?.rol === "cliente";
+        const esProductor = usuario?.email === beat.producer;
+
+        let botonCompra = "";
+        if (!usuario) {
+          botonCompra = `<button disabled style="background:#ccc; color:#666; cursor:not-allowed;">🔒 Inicia sesión para comprar</button>`;
+        } else if (esProductor) {
+          botonCompra = `<button disabled style="background:#ccc; color:#666; cursor:not-allowed;">🚫 No puedes comprar tu propio beat</button>`;
+        } else if (puedeComprar) {
+          botonCompra = `<button>🛒 Comprar este beat</button>`;
+        }
+
+        contenedor.innerHTML = `
+          <div class="beat-detalle">
+            <img src="${cover}" alt="${beat.title}" />
+            <div class="info">
+              <h2>${beat.title}</h2>
+              <p>🎛️ ${beat.bpm} BPM • ${beat.key}</p>
+              <p>👤 ${beat.producer}</p>
+              <p>🏷️ ${beat.tags.split(',').map(t => `#${t.trim()}`).join(' ')}</p>
+              <p><strong>$${beat.price}</strong></p>
+              ${audio ? `<audio controls src="${audio}"></audio>` : `<p><em>Sin audio disponible.</em></p>`}
+              ${botonCompra}
+            </div>
+          </div>
+        `;
+
+        document.getElementById("perfilLink").href = `/perfil.html?productor=${encodeURIComponent(beat.producer)}`;
+      } catch (err) {
+        console.error("❌ Error al cargar beat:", err);
+      }
+    }
+
+    cargarBeat();
+  </script>
+</body>
+</html>
