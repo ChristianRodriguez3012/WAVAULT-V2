@@ -21,7 +21,7 @@ async function loginAs(role) {
 const runResults = [];
 const fixturePath = path.join(__dirname, 'fixtures', 'beat.mp3');
 
-const reportDir = path.join(__dirname, '..', '..', 'ED', 'HISTORIAL');
+const reportDir = path.join(__dirname, '..', '..', 'INFORMES_PRUEBAS', 'HISTORIAL');
 
 beforeAll(() => {
   // Asegura fixture existe

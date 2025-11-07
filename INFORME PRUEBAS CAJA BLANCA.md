@@ -4,22 +4,23 @@ Resumen
 - Tipo: Pruebas de Caja Blanca (API e Integración)  
 - Herramientas: Jest + Supertest  
 - Entorno: Terminal de GitHub Codespaces / Devcontainer Ubuntu 24.04.2 LTS  
-- Ubicación de generación automática de informes: /workspaces/WAVAULT-V2/ED/HISTORIAL/  
+- Carpeta de informes: INFORMES_PRUEBAS/HISTORIAL  
+- Ubicación de generación automática de informes: /workspaces/WAVAULT-V2/INFORMES_PRUEBAS/HISTORIAL/  
 - Nombre archivo: <timestamp ISO> con ":" reemplazados por "-" (ej. `2025-11-07T12-34-56.789Z.md`)
 
 Cómo ejecutar las pruebas (consola)
 ```bash
 cd /workspaces/WAVAULT-V2
 npm install        # si es la primera vez o cambian dependencias
-npm test           # ejecuta todas las suites y genera un informe en ED/HISTORIAL
+npm test           # ejecuta todas las suites y genera un informe en INFORMES_PRUEBAS/HISTORIAL
 # Ejecutar solo la suite funcional:
 npx jest backend/tests/api.functional.test.js --runInBand --testTimeout=20000
 ```
 
 Cómo ver el último informe generado
 ```bash
-ls -t ED/HISTORIAL | head -n 1            # muestra el nombre del último informe
-cat ED/HISTORIAL/$(ls -t ED/HISTORIAL | head -n1)   # muestra su contenido en consola
+ls -t INFORMES_PRUEBAS/HISTORIAL | head -n 1            # muestra el nombre del último informe
+cat INFORMES_PRUEBAS/HISTORIAL/$(ls -t INFORMES_PRUEBAS/HISTORIAL | head -n1)   # muestra su contenido en consola
 ```
 
 Estructura del informe (contenido generado automáticamente)
