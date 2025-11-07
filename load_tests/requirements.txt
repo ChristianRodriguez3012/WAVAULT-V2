@@ -1,0 +1,4 @@
+# Dependencias para las pruebas de carga
+locust>=2.15.1
+pandas>=2.0.0
+matplotlib>=3.7.1
