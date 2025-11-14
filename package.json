@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "e2e:local": "node scripts/run-e2e-cases.js",
     "load:test": "k6 run tests/load_test.js",
     "load:test:artillery": "npx artillery run tests/load_test.yml",
     "load:report": "node scripts/run-load2.js"

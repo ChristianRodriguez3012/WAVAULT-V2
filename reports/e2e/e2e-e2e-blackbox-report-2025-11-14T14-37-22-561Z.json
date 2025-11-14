@@ -1,0 +1,23 @@
+{
+  "runId": "run-1763131040759",
+  "type": "E2E-BLACKBOX",
+  "timestamp": "2025-11-14T14:37:22.562Z",
+  "host": "codespaces-9fb63f",
+  "results": [
+    {
+      "id": "CP-E2E-001",
+      "title": "Productor sube un beat",
+      "status": "PASS",
+      "duration_ms": 566,
+      "details": {
+        "title": "E2E Test Beat 1763131040942"
+      }
+    },
+    {
+      "id": "CP-E2E-002",
+      "title": "Cliente busca y reproduce demo",
+      "status": "PASS",
+      "duration_ms": 920
+    }
+  ]
+}

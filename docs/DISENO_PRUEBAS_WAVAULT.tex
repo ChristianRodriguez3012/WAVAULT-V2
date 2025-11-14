@@ -1,0 +1,147 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DOCUMENTO DE DISEÑO DE PRUEBAS - WAVAULT
+% Versión Corregida (Ajuste de Cambios Reales)
+%
+% Basado en la propuesta original por Christian Omar Rodríguez Huamanñahui.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[12pt, a4paper]{article}
+
+% --- PAQUETES REQUERIDOS ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5ex}
+
+% --- INFORMACIÓN DEL DOCUMENTO ---
+\title{Diseño de Casos de Prueba: Proyecto WAVAULT -- Cambios Reales}
+\author{Christian Omar Rodríguez Huamanñahui}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\newpage
+\tableofcontents
+\thispagestyle{empty}
+\newpage
+\pagestyle{fancy}
+
+% ==================================================================
+\section{Resumen de cambios aplicados al repositorio}
+% ==================================================================
+
+En esta versión se documentan solamente los cambios que efectivamente se implementaron en el proyecto durante la preparación y ejecución de las pruebas de carga y rendimiento.
+
+\begin{itemize}
+  \item Se añadió un archivo de configuración de Playwright: \texttt{playwright.config.js} (configuración para ejecución remota en LambdaTest si se desea).
+  \item Se añadieron scripts y pruebas de carga:
+    \begin{itemize}
+      \item \texttt{tests/load_test.js} (script para k6 — disponible como alternativa).
+      \item \texttt{tests/load_test.yml} (script para Artillery — escenario de ramp-up y sostenimiento a 50 usuarios).
+    \end{itemize}
+  \item Se incorporó un runner basado en Autocannon para ejecuciones reproducibles locales y generación de reportes:
+    \begin{itemize}
+      \item \texttt{scripts/run-load2.js} (ejecuta \texttt{autocannon} con 50 conexiones durante 120s, genera MD y JSON en \texttt{reports/}).
+      \item Se añadieron entradas en \texttt{package.json} para ejecutar la prueba: \texttt{"load:report": "node scripts/run-load2.js"}.
+    \end{itemize}
+  \item Se generaron artefactos de informe de ejemplo en \texttt{reports/}:
+    \begin{itemize}
+      \item \texttt{reports/load-report-<timestamp>.md}
+      \item \texttt{reports/load-report-<timestamp>.json}
+      \item \texttt{reports/README.md} con índice de reportes
+    \end{itemize}
+  \item Se añadió el documento resumen de comandos: \texttt{LOAD_TEST_SUMMARY.md} (procedimiento, comandos y pasos para reproducir).
+  \item Se instaló y usó \texttt{ffmpeg} en el entorno (requerido por \texttt{generar_demo.py}).
+  \item Se hicieron commits locales y se creó la rama remota \texttt{test-2} con todos los cambios.
+\end{itemize}
+
+% ==================================================================
+\section{Actualizaciones en Pruebas Funcionales y E2E}
+% ==================================================================
+
+En lo que respecta a pruebas funcionales/end-to-end, lo aplicado fue:
+
+\begin{itemize}
+  \item \textbf{Playwright:} se agregó \texttt{playwright.config.js} para facilitar ejecuciones de E2E en entornos remotos (LambdaTest) o locales. Esto sustituye parcialmente el uso manual de Selenium para algunos flujos automáticos, aunque Selenium sigue siendo una alternativa válida.
+  \item \textbf{Estructura de tests:} existe una carpeta \texttt{tests/} con ejemplos y scripts (p.ej. \texttt{tests/load_test.js} para k6, útil como referencia para convertir escenarios a k6 si se desea).
+\end{itemize}
+
+% ==================================================================
+\section{Pruebas No Funcionales: Carga y Reportes}
+% ==================================================================
+
+Los cambios concretos implementados para pruebas de carga y rendimiento son:
+
+\begin{itemize}
+  \item Se decidió usar \textbf{Autocannon} como runner reproducible desde Node.js para ejecuciones locales y generación automática de reportes (script \texttt{scripts/run-load2.js}).
+  \item Se incluyó además como artefactos los scripts de ejemplo para otras herramientas (k6 y Artillery) en \texttt{tests/} para facilitar migración o ejecución en entornos CI/distribuidos.
+  \item El script principal genera:
+    \begin{itemize}
+      \item Un archivo Markdown con resumen y el JSON completo: \texttt{reports/load-report-<timestamp>.md}
+      \item Un archivo JSON con todos los datos crudos: \texttt{reports/load-report-<timestamp>.json}
+      \item Actualiza \texttt{reports/README.md} para mantener un índice de ejecuciones.
+    \end{itemize}
+  \item Comando para ejecutar la prueba y generar reporte:
+    \begin{verbatim}
+    npm run load:report
+    \end{verbatim}
+  \item Configuración ejecutada por defecto en el script:
+    \begin{itemize}
+      \item URL objetivo: \texttt{http://localhost:3000/beats}
+      \item Conexiones concurrentes: 50
+      \item Duración: 120 segundos
+    \end{itemize}
+\end{itemize}
+
+% ==================================================================
+\section{Archivos agregados relevantes (lista breve)}
+% ==================================================================
+
+\begin{longtable}{p{0.35\textwidth} p{0.6\textwidth}}
+\toprule
+\textbf{Ruta} & \textbf{Descripción} \\
+\midrule
+\endhead
+\texttt{playwright.config.js} & Configuración Playwright (LambdaTest). \\
+\texttt{tests/load_test.js} & Script ejemplo para k6. \\
+\texttt{tests/load_test.yml} & Script ejemplo para Artillery (ramp-up a 50 users). \\
+\texttt{scripts/run-load2.js} & Runner Node que ejecuta Autocannon y genera reportes MD/JSON. \\
+\texttt{reports/} & Carpeta con reportes generados y \texttt{README.md} índice. \\
+\texttt{LOAD_TEST_SUMMARY.md} & Documento resumen con todos los comandos y pasos. \\
+\bottomrule
+\caption{Archivos añadidos o modificados para las pruebas}
+\end{longtable}
+
+% ==================================================================
+\section{Ejecución en CI y recomendaciones}
+% ==================================================================
+
+Para integrar estas pruebas en CI (por ejemplo GitHub Actions) y obtener artefactos reproducibles, se recomienda:
+
+\begin{itemize}
+  \item Añadir un job en el workflow que arranque la aplicación (o apunte a la URL pública) y ejecute \texttt{npm run load:report}.
+  \item Guardar la carpeta \texttt{reports/} como artefacto del job para inspección posterior.
+  \item Definir umbrales que provoquen fallo en el job (por ejemplo p95 > 1000ms o errores > 1\%). El script actual puede extenderse para devolver un código de salida >0 si se incumplen umbrales.
+  \item Para cargas mayores o distribuidas, ejecutar k6 en modo distribuido o k6 Cloud, o bien usar runners en múltiples máquinas/instances.
+\end{itemize}
+
+% ==================================================================
+\section{Estado de control de versiones}
+% ==================================================================
+
+Los cambios fueron commiteados y subidos a la rama remota \texttt{test-2} a partir de la rama \texttt{main}. Las instrucciones para replicar el push se encuentran en \texttt{LOAD_TEST_SUMMARY.md}.
+
+\end{document}
