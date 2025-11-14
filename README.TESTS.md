@@ -1,12 +1,6 @@
-Este README fue movido a la raíz del proyecto como `README.TESTS.md`.
-Para ver la guía completa sobre cómo ejecutar los tests y el runner E2E, abre el archivo en la raíz:
-
-- `README.TESTS.md`
-
-Mantengo este archivo en la carpeta `tests/` como referencia mínima.
 # Tests (E2E / Load / Unit)
 
-Ubicación de los tests:
+Ubicación de los tests y runners:
 - E2E (Playwright): `tests/*.spec.js` (ej. `tests/e2e_productor_cliente.spec.js`)
 - Runner programático E2E: `scripts/run-e2e-cases.js` (ejecución local Chromium)
 - Load tests: `tests/load_test.js` (k6) y `tests/load_test.yml` (Artillery example)

@@ -1,3 +1,9 @@
+Este README fue movido a la raíz del proyecto como `README.LOAD.md`.
+Para ver la guía completa sobre reportes de carga, abre el archivo en la raíz del repositorio:
+
+- `README.LOAD.md`
+
+Mantengo este archivo en la carpeta como referencia mínima.
 # Reportes de carga
 
 Carpeta: `reports/load/`
