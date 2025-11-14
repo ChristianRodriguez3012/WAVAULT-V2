@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "load:test": "k6 run tests/load_test.js",
+    "load:test:artillery": "npx artillery run tests/load_test.yml",
+    "load:report": "node scripts/run-load2.js"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +18,9 @@
     "fluent-ffmpeg": "^2.1.3",
     "multer": "^2.0.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "autocannon": "^7.11.0"
   }
 }

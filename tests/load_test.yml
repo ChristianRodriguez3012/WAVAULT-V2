@@ -1,0 +1,27 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      rampTo: 50
+      name: "ramp to 50 users"
+    - duration: 60
+      arrivalRate: 50
+      name: "sustain 50 users"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - flow:
+      - get:
+          url: "/login.html"
+      - get:
+          url: "/beats"
+      - post:
+          url: "/login"
+          json:
+            email: "load@test.local"
+            password: "password"
+      - get:
+          url: "/"
