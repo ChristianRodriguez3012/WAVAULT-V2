@@ -9,10 +9,14 @@ cd "$SCRIPT_DIR/WAVAULT/backend"
 # Load environment variables from .env file if it exists
 if [ -f .env ]; then
     echo "✅ Loading environment variables from .env file"
-    export $(cat .env | grep -v '^#' | xargs)
+    # Use dotenv to safely load environment variables
+    set -a
+    source .env
+    set +a
 else
-    echo "⚠️  No .env file found, using default configuration"
-    export GEMINI_API_KEY="AIzaSyBqreeolm2eh4e0SIoELyDGRT4EaT81aI4"
+    echo "❌ No .env file found. Please create one with your GEMINI_API_KEY"
+    echo "See GOOGLE_API_SETUP.md for instructions"
+    exit 1
 fi
 
 echo "🚀 Starting WAVAULT server..."

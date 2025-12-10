@@ -5,22 +5,23 @@ Este documento describe cómo se ha configurado la API de Google Gemini en WAVAU
 ## ✅ Configuración Completada
 
 ### 1. API Key de Google Gemini
-La API Key de Google Gemini ha sido configurada exitosamente:
-```
-AIzaSyBqreeolm2eh4e0SIoELyDGRT4EaT81aI4
-```
+La API Key de Google Gemini ha sido configurada exitosamente en el archivo `.env`.
+
+**Nota de Seguridad**: La API key está almacenada en el archivo `.env` que está excluido del control de versiones para proteger tus credenciales.
 
 ### 2. Archivo de Configuración (.env)
 Se ha creado el archivo `.env` en `/WAVAULT/backend/.env` con las siguientes variables:
 
 ```bash
 # Google Gemini API Configuration
-GEMINI_API_KEY=AIzaSyBqreeolm2eh4e0SIoELyDGRT4EaT81aI4
+GEMINI_API_KEY=your_api_key_here
 
 # Server Configuration
 PORT=3000
 NODE_ENV=development
 ```
+
+Para obtener tu propia API key, visita: https://aistudio.google.com/app/apikey
 
 ### 3. Dependencias Instaladas
 
