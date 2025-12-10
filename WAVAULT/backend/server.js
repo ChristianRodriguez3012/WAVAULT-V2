@@ -4,6 +4,7 @@ const fs = require("fs");
 const multer = require("multer");
 const db = require("./db");
 const { spawn } = require("child_process");
+const AudioAnalyzer = require("./ai-analysis-integration");
 
 const app = express();
 const port = 3000;
@@ -94,12 +95,12 @@ app.post("/login", (req, res) => {
 app.post("/subir-beat", upload.fields([
   { name: "cover", maxCount: 1 },
   { name: "audio", maxCount: 1 }
-]), (req, res) => {
-  const { title, price, producer, tags, bpm, key } = req.body;
+]), async (req, res) => {
+  const { title, price, producer, tags, bpm, key, useAI } = req.body;
   const coverFile = req.files?.cover?.[0];
   const audioFile = req.files?.audio?.[0];
 
-  if (!title || !price || !producer || !tags || !bpm || !key || !coverFile || !audioFile) {
+  if (!title || !price || !producer || !coverFile || !audioFile) {
     return res.status(400).json({ error: "Faltan campos o archivos requeridos." });
   }
 
@@ -111,10 +112,46 @@ app.post("/subir-beat", upload.fields([
   console.log("   🎨 Cover:", coverPath);
   console.log("   🎵 Audio:", audioPath);
 
+  let finalBpm = bpm;
+  let finalKey = key;
+  let finalTags = tags;
+
+  // Use AI analysis if requested and BPM/Key are not provided
+  if (useAI === "true" || !bpm || !key) {
+    try {
+      console.log("🤖 Analizando audio con IA...");
+      const analyzer = new AudioAnalyzer();
+      const analysisResult = await analyzer.analyze(fullAudioPath, audioFile.originalname);
+      
+      if (analysisResult.success) {
+        finalBpm = bpm || analysisResult.analysis.bpm;
+        finalKey = key || analysisResult.analysis.key;
+        finalTags = tags || analysisResult.analysis.tags.join(", ");
+        console.log("✅ Análisis IA completado:", {
+          bpm: finalBpm,
+          key: finalKey,
+          tags: finalTags
+        });
+      }
+    } catch (aiError) {
+      console.warn("⚠️ Error en análisis IA, usando valores por defecto:", aiError.message);
+      finalBpm = bpm || "120";
+      finalKey = key || "Unknown";
+      finalTags = tags || "";
+    }
+  }
+
+  // Ensure we have values for required fields
+  if (!finalBpm || !finalKey || !finalTags) {
+    return res.status(400).json({ 
+      error: "Faltan campos requeridos (BPM, key, tags). Proporciona los valores o habilita análisis IA." 
+    });
+  }
+
   db.run(
     `INSERT INTO beats (title, price, tags, bpm, key, cover, audio, producer)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, price, tags, bpm, key, coverPath, audioPath, producer],
+    [title, price, finalTags, finalBpm, finalKey, coverPath, audioPath, producer],
     function (err) {
       if (err) {
         console.error("❌ Error al guardar beat:", err.message);
@@ -157,6 +194,41 @@ app.get("/beats", (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
+});
+
+// ============================
+// ✅ ANALIZAR AUDIO CON IA
+// ============================
+app.post("/analizar-audio", upload.single("audio"), async (req, res) => {
+  try {
+    const audioFile = req.file;
+    
+    if (!audioFile) {
+      return res.status(400).json({ error: "No se proporcionó archivo de audio." });
+    }
+
+    const audioPath = audioFile.path;
+    const fileName = audioFile.originalname;
+
+    // Initialize analyzer
+    const analyzer = new AudioAnalyzer();
+    
+    // Analyze the audio file
+    const result = await analyzer.analyze(audioPath, fileName);
+
+    // Clean up the uploaded file
+    if (fs.existsSync(audioPath)) {
+      fs.unlinkSync(audioPath);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error en análisis de audio:", error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
 });
 
 // ============================
