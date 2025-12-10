@@ -24,6 +24,38 @@
     <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
   </footer>
 
+  <!-- PLAYER GLOBAL -->
+  <div class="player-wrapper">
+    <div class="player-container">
+      <div class="player-info">
+        <img id="playerCover" src="/assets/img/placeholder.jpg" alt="Cover" class="player-cover">
+        <div class="player-track-info">
+          <h4 id="playerTitle">-</h4>
+          <p id="playerArtist">-</p>
+        </div>
+      </div>
+      <div class="player-controls">
+        <button id="playPauseBtn" class="player-btn" title="Reproducir">
+          <i class="fas fa-play"></i>
+        </button>
+        <div class="player-progress">
+          <span id="currentTime" class="time-display">0:00</span>
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+            <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+          </div>
+          <span id="duration" class="time-display">0:00</span>
+        </div>
+        <button id="volumeBtn" class="player-btn" title="Volumen">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider" title="Volumen">
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+  <script src="/js/player-global.js"></script>
   <script>
     const usuario = JSON.parse(localStorage.getItem("usuarioActivo"));
     const inicioLink = document.getElementById("inicioLink");
@@ -76,11 +108,23 @@
               <p>👤 ${beat.producer}</p>
               <p>🏷️ ${beat.tags.split(',').map(t => `#${t.trim()}`).join(' ')}</p>
               <p><strong>$${beat.price}</strong></p>
-              ${audio ? `<audio controls src="${audio}"></audio>` : `<p><em>Sin audio disponible.</em></p>`}
               ${botonCompra}
             </div>
           </div>
         `;
+
+        // Reproducir en el player global
+        if (audio && window.wavaultPlayer) {
+          const beatData = {
+            id: beat.id,
+            nombre: beat.title,
+            productor: beat.producer,
+            portada: cover,
+            archivo: audio,
+            precio: beat.price
+          };
+          window.wavaultPlayer.setBeat(beatData);
+        }
 
         document.getElementById("perfilLink").href = `/perfil.html?productor=${encodeURIComponent(beat.producer)}`;
       } catch (err) {
@@ -90,5 +134,48 @@
 
     cargarBeat();
   </script>
+
+  <!-- PLAYER GLOBAL -->
+  <div class="player-wrapper">
+    <div class="player-container">
+      <div class="player-info-row">
+        <div class="player-info-content">
+          <img id="playerCover" src="/assets/img/placeholder.jpg" alt="Cover" class="player-cover">
+          <div class="player-track-details">
+            <h3 id="playerTitle" class="player-title">Selecciona un beat</h3>
+            <p id="playerArtist" class="player-artist">Productor</p>
+            <p id="playerMeta" class="player-meta">- BPM • - KEY</p>
+          </div>
+        </div>
+      </div>
+      <div class="player-progress-row">
+        <span id="currentTime" class="time-display">0:00</span>
+        <div class="progress-bar-container">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+            <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+          </div>
+        </div>
+        <span id="duration" class="time-display">0:00</span>
+      </div>
+      <div class="player-controls-row">
+        <div class="player-buttons-group">
+          <button id="prevBtn" class="player-btn" title="Beat anterior"><i class="fas fa-step-backward"></i></button>
+          <button id="playPauseBtn" class="player-btn play-pause-btn" title="Reproducir"><i class="fas fa-play"></i></button>
+          <button id="nextBtn" class="player-btn" title="Siguiente beat"><i class="fas fa-step-forward"></i></button>
+        </div>
+        <div class="spacer"></div>
+        <div class="player-secondary-controls">
+          <button id="loopBtn" class="player-btn secondary-btn" title="Modo repetición"><i class="fas fa-redo"></i></button>
+          <button id="volumeBtn" class="player-btn secondary-btn" title="Volumen"><i class="fas fa-volume-up"></i></button>
+          <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider" title="Volumen">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+  <script src="/js/player-global.js"></script>
+  <script src="/js/beat-player-integration.js"></script>
 </body>
 </html>

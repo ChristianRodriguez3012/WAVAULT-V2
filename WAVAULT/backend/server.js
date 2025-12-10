@@ -41,7 +41,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/WAVAULT/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "client.html"));
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
 app.get("/upload-beat", (req, res) => {
@@ -101,7 +101,16 @@ app.post("/login", (req, res) => {
 // ✅ OBTENER BEATS
 // ===================
 app.get("/beats", (req, res) => {
-  db.all(`SELECT * FROM beats`, [], (err, rows) => {
+  const { producer } = req.query;
+  let query = `SELECT * FROM beats`;
+  let params = [];
+  
+  if (producer) {
+    query += ` WHERE producer = ?`;
+    params.push(producer);
+  }
+  
+  db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
@@ -142,7 +151,7 @@ app.get("/ventas", (req, res) => {
 
   db.all(`
     SELECT 
-      b.id, b.title, b.cover, v.comprador_email AS comprador
+      b.id, b.title, b.cover, b.price, v.comprador_email AS comprador
     FROM ventas v
     JOIN beats b ON b.id = v.beat_id
     WHERE b.producer = ?
@@ -508,6 +517,7 @@ app.post("/api/enrich-beats-simple", async (req, res) => {
 /**
  * POST /upload-beat
  * Guarda un beat en la BD después de confirmación del usuario
+ * Procesa el archivo con baja calidad + tag WAVAULT
  * El beat SOLO se guarda si el usuario confirma en el modal
  */
 app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
@@ -542,28 +552,90 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
     const audioPath = `uploads/audio/${audioFile.filename}`;
     const coverPath = `uploads/covers/${coverFile.filename}`;
     const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
+    
+    // Rutas para archivo procesado (clone con baja calidad + tag)
+    const processedFilename = audioFile.filename.replace(/\.mp3$/i, "_clone.mp3");
+    const audioProcessedPath = `uploads/audio/${processedFilename}`;
+    const fullAudioProcessedPath = path.join(__dirname, "..", "public", audioProcessedPath);
 
     console.log(`✅ Guardando beat: ${beat_name}`);
-    console.log(`   🎵 Audio: ${audioPath}`);
+    console.log(`   🎵 Audio original: ${audioPath}`);
+    console.log(`   🎵 Audio procesado: ${audioProcessedPath}`);
     console.log(`   🖼️  Cover: ${coverPath}`);
     console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${beat_type}`);
 
-    // Insertar en BD
+    // Insertar en BD (con audio_processed inicialmente nulo, se actualiza después)
     db.run(
-      `INSERT INTO beats (title, artist, bpm, key, type, mood, price, tags, cover, audio, producer, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [beat_name, reference || 'Unknown', bpm, key, beat_type, mood, price, tags || "beat", coverPath, audioPath, producer, description || null],
+      `INSERT INTO beats (title, bpm, key, price, tags, cover, audio, audio_processed, producer)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [beat_name, bpm, key, price, tags || "beat", coverPath, audioPath, audioProcessedPath, producer],
       function (err) {
         if (err) {
           console.error("❌ Error al guardar beat:", err.message);
           return res.status(500).json({
             success: false,
-            message: "Error al guardar el beat en la BD"
+            message: "Error al guardar el beat en la BD: " + err.message
           });
         }
 
         const beatId = this.lastID;
         console.log(`✅ Beat guardado con ID: ${beatId}`);
+
+        // ==========================================
+        // 🔄 PROCESAR BEAT CLONE (Baja calidad + Tag)
+        // ==========================================
+        console.log(`\n🔄 Iniciando procesamiento de clone...`);
+        const processScriptPath = path.join(__dirname, "process_beat_clone.py");
+
+        if (fs.existsSync(processScriptPath)) {
+          const processPy = spawn("python3", [
+            processScriptPath,
+            fullAudioPath,
+            fullAudioProcessedPath,
+            "2000"  // Delay del tag en ms
+          ]);
+
+          let processOutput = "";
+          let processError = "";
+
+          processPy.stdout.on("data", data => {
+            const msg = data.toString();
+            processOutput += msg;
+            console.log("🐍", msg);
+          });
+
+          processPy.stderr.on("data", data => {
+            const msg = data.toString();
+            processError += msg;
+            console.error("❌", msg);
+          });
+
+          processPy.on("close", (code) => {
+            if (code === 0) {
+              console.log(`✅ Clone procesado correctamente`);
+              console.log(`   📁 Ruta: ${audioProcessedPath}`);
+              
+              // No es necesario actualizar, ya está guardado en INSERT
+              // pero confirmamos que el archivo existe
+              if (fs.existsSync(fullAudioProcessedPath)) {
+                const stats = fs.statSync(fullAudioProcessedPath);
+                console.log(`   📦 Tamaño: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+              }
+            } else {
+              console.warn(`⚠️ Procesamiento de clone finalizó con código ${code}`);
+              console.warn(`   El beat se guardó pero sin clone procesado`);
+              console.warn(`   Usuario puede reproducir el archivo original`);
+            }
+          });
+
+          processPy.on("error", (err) => {
+            console.error(`❌ Error ejecutando script de procesamiento:`, err.message);
+          });
+
+        } else {
+          console.warn(`⚠️ Script de procesamiento no encontrado: ${processScriptPath}`);
+          console.warn(`   Procesando solo con demo...`);
+        }
 
         // Guardar análisis IA si está disponible
         if (ai_analysis) {
@@ -576,6 +648,7 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
         }
 
         // Generar demo con marca de agua (opcional)
+        console.log(`\n📝 Generando demo con marca de agua...`);
         const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");
         const scriptPath = path.join(__dirname, "generar_demo.py");
 
@@ -589,7 +662,7 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
             if (code === 0) {
               const relativeDemoPath = audioPath.replace(/\.mp3$/i, "_demo.mp3");
               db.run(`UPDATE beats SET demo = ? WHERE id = ?`, [relativeDemoPath, beatId]);
-              console.log(`✅ Demo generada: ${demoPath}`);
+              console.log(`✅ Demo generada: ${relativeDemoPath}`);
             }
           });
         }
@@ -597,7 +670,8 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
         return res.json({
           success: true,
           message: "✅ Beat guardado exitosamente",
-          beatId: beatId
+          beatId: beatId,
+          audio_processed: audioProcessedPath
         });
       }
     );

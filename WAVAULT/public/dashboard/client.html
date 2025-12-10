@@ -5,172 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cliente - WAVAULT</title>
   <base href="/" />
-  <link rel="stylesheet" href="../assets/css/style.css" />
-
-
-  <style>
-    .burbuja {
-      background-color: red;
-      color: white;
-      font-weight: bold;
-      padding: 2px 7px;
-      border-radius: 50%;
-      font-size: 0.75em;
-      margin-left: 5px;
-      vertical-align: middle;
-    }
-
-    .beat-card {
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #fff;
-      box-shadow: 1px 1px 6px rgba(0,0,0,0.05);
-    }
-
-    .beat-card img {
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .beat-info {
-      padding: 10px;
-    }
-
-    .beat-info h3 {
-      margin: 0 0 5px;
-      color: #1a73e8;
-      cursor: pointer;
-    }
-
-    .beat-info .nombre-prod {
-      color: #1a73e8;
-      cursor: pointer;
-    }
-
-    .historial-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-
-    /* 🎧 Reproductor Global */
-    .player-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px;
-      background-color: #111;
-      color: white;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 999;
-    }
-
-    .player-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .player-info img {
-      width: 50px;
-      height: 50px;
-      border-radius: 4px;
-    }
-
-    .player-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .player-controls input[type="range"] {
-      height: 4px;
-    }
-
-    .player-timer {
-      font-size: 0.85em;
-    }
-  </style>
-
+  <link rel="stylesheet" href="/assets/css/style.css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
   <script>
     window.usuario = JSON.parse(localStorage.getItem('usuarioActivo'));
     if (!usuario || usuario.rol !== 'cliente') {
       alert('Acceso denegado. Inicia sesión como cliente.');
-      window.location.href = '../login.html';
+      window.location.href = '/login.html';
     }
   </script>
 </head>
 <body>
-  <header>
-    <h1>🎧 WAVAULT</h1>
-    <nav>
-      <a href="#" data-seccion="feed">Feed</a>
-      <a href="#" data-seccion="carrito">
-        Carrito <span id="carritoContador" class="burbuja">0</span>
-      </a>
-      <a href="#" data-seccion="perfil">Mi Perfil</a>
-      <a href="#" onclick="cerrarSesion()">Cerrar Sesión</a>
-    </nav>
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <i class="fas fa-compact-disc"></i>
+        <span>WAVAULT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#" data-seccion="feed" class="nav-link">Feed</a>
+        <a href="#" data-seccion="carrito" class="nav-link">
+          Carrito <span id="carritoContador" style="background: #ef4444; color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">0</span>
+        </a>
+        <a href="#" data-seccion="perfil" class="nav-link">Mi Perfil</a>
+        <a href="#" onclick="cerrarSesion()" class="nav-link btn-register">Cerrar Sesión</a>
+      </nav>
+    </div>
   </header>
 
   <main>
-    <!-- ========== FEED ========== -->
-    <section id="feedSection" class="cliente-section">
-      <div class="search-bar">
+    <section id="feedSection" class="cliente-section" style="padding: 2rem;">
+      <div class="search-bar" style="max-width: 1400px; margin: 0 auto 2rem;">
+        <i class="fas fa-search"></i>
         <input type="text" id="buscarBeatsCliente" placeholder="Buscar beats..." />
       </div>
       <div id="beatsCliente" class="beat-feed"></div>
     </section>
 
-    <!-- ========== CARRITO ========== -->
-    <section id="carritoSection" class="cliente-section" style="display:none;">
-      <h2>🛒 Carrito</h2>
+    <section id="carritoSection" class="cliente-section" style="display:none; max-width: 1000px; margin: 0 auto; padding: 2rem;">
+      <h2 style="margin-bottom: 2rem; color: #1e293b;"><i class="fas fa-shopping-cart"></i> Mi Carrito</h2>
       <div id="carritoItems" class="carrito-list"></div>
-      <p><strong>Total:</strong> $<span id="carritoTotal">0</span></p>
-      <button onclick="pagar()">Pagar</button>
-      <button onclick="vaciarCarrito()">Vaciar carrito</button>
+      <div style="background: white; padding: 2rem; border-radius: 12px; margin-top: 2rem; text-align: right;">
+        <p style="margin: 0 0 1rem 0; font-size: 1.5rem;"><strong>Total:</strong> $<span id="carritoTotal">0</span></p>
+        <button onclick="pagar()" style="padding: 1rem 2rem; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: 1rem;">
+          <i class="fas fa-credit-card"></i> Proceder al Pago
+        </button>
+        <button onclick="vaciarCarrito()" style="padding: 1rem 2rem; background: #ef4444; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+          <i class="fas fa-trash"></i> Vaciar Carrito
+        </button>
+      </div>
     </section>
 
-    <!-- ========== PERFIL ========== -->
-    <section id="perfilSection" class="cliente-section" style="display:none;">
-      <h2>👤 Mi Perfil</h2>
-      <p><strong>Email:</strong> <span id="clienteEmail">-</span></p>
-      <h3>🧾 Historial de Compras</h3>
-      <div id="historialCompras" class="historial-grid"></div>
+    <section id="perfilSection" class="cliente-section" style="display:none; max-width: 1000px; margin: 0 auto; padding: 2rem;">
+      <h2 style="margin-bottom: 2rem; color: #1e293b;"><i class="fas fa-user"></i> Mi Perfil</h2>
+      <div style="background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem;">
+        <p style="font-size: 1.1rem;"><strong>Email:</strong> <span id="clienteEmail">-</span></p>
+      </div>
+      <h3 style="margin-bottom: 1rem; color: #1e293b;"><i class="fas fa-history"></i> Historial de Compras</h3>
+      <div id="historialCompras"></div>
     </section>
   </main>
 
-  <!-- ✅ Reproductor Global -->
-  <div id="reproductorGlobal" class="player-bar" style="display: none;">
-    <div class="player-info">
-      <img id="playerCover" src="" alt="Cover" />
-      <div>
-        <h4 id="playerTitle">Título del Beat</h4>
-        <p id="playerProducer">Productor</p>
+  <div id="globalPlayer" class="global-player" style="display: none;">
+    <div class="player-container">
+      <div class="player-info">
+        <img id="playerCover" src="" alt="Cover" class="player-cover">
+        <div class="player-track-info">
+          <h4 id="playerTitle">-</h4>
+          <p id="playerArtist">-</p>
+        </div>
+      </div>
+      <div class="player-controls">
+        <button id="playPauseBtn" class="player-btn">
+          <i class="fas fa-play"></i>
+        </button>
+        <div class="player-progress">
+          <span id="currentTime">0:00</span>
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+            <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+          </div>
+          <span id="duration">0:00</span>
+        </div>
+        <button id="volumeBtn" class="player-btn">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider">
       </div>
     </div>
-    <div class="player-controls">
-      <button id="btnPrev">◀◀</button>
-      <button id="playPauseBtn">⏵</button>
-      <button id="btnNext">▶▶</button>
-      <input type="range" id="progressBar" step="1" value="0" />
-      <input type="range" id="volumeControl" step="0.01" min="0" max="1" value="1" />
-      <span id="playerTimer" class="player-timer">0:00</span>
-    </div>
-    <audio id="audioPlayer"></audio>
   </div>
 
-  <footer>
-    <p>&copy; 2025 WAVAULT</p>
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>WAVAULT</h4>
+        <p>Tu plataforma de beats de confianza</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+    </div>
   </footer>
 
-  <script src="../assets/js/client.js"></script>
+  <script src="/assets/js/client.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       if (window.usuario) {
@@ -193,8 +130,51 @@
 
     function cerrarSesion() {
       localStorage.removeItem('usuarioActivo');
-      window.location.href = '../login.html';
+      window.location.href = '/login.html';
     }
   </script>
+
+  <!-- PLAYER GLOBAL -->
+  <div class="player-wrapper">
+    <div class="player-container">
+      <div class="player-info-row">
+        <div class="player-info-content">
+          <img id="playerCover" src="/assets/img/placeholder.jpg" alt="Cover" class="player-cover">
+          <div class="player-track-details">
+            <h3 id="playerTitle" class="player-title">Selecciona un beat</h3>
+            <p id="playerArtist" class="player-artist">Productor</p>
+            <p id="playerMeta" class="player-meta">- BPM • - KEY</p>
+          </div>
+        </div>
+      </div>
+      <div class="player-progress-row">
+        <span id="currentTime" class="time-display">0:00</span>
+        <div class="progress-bar-container">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+            <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+          </div>
+        </div>
+        <span id="duration" class="time-display">0:00</span>
+      </div>
+      <div class="player-controls-row">
+        <div class="player-buttons-group">
+          <button id="prevBtn" class="player-btn" title="Beat anterior"><i class="fas fa-step-backward"></i></button>
+          <button id="playPauseBtn" class="player-btn play-pause-btn" title="Reproducir"><i class="fas fa-play"></i></button>
+          <button id="nextBtn" class="player-btn" title="Siguiente beat"><i class="fas fa-step-forward"></i></button>
+        </div>
+        <div class="spacer"></div>
+        <div class="player-secondary-controls">
+          <button id="loopBtn" class="player-btn secondary-btn" title="Modo repetición"><i class="fas fa-redo"></i></button>
+          <button id="volumeBtn" class="player-btn secondary-btn" title="Volumen"><i class="fas fa-volume-up"></i></button>
+          <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider" title="Volumen">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+  <script src="/js/player-global.js"></script>
+  <script src="/js/beat-player-integration.js"></script>
 </body>
 </html>

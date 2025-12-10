@@ -86,44 +86,40 @@ function renderizarBeats(beatsToShow = allBeats) {
   actualizarContadorCarrito();
 }
 
-// Reproducir beat - Usa el player global
+// Reproducir beat
 function playBeat(beat, event) {
   if (event) event.stopPropagation();
   
   currentBeat = beat;
   const audioPath = beat.demo || beat.audio;
   
-  console.log('🎵 Play Beat Called:', beat);
-  console.log('🎵 Audio Path:', audioPath);
+  if (currentAudio) {
+    currentAudio.pause();
+  }
   
-  if (!audioPath) {
-    console.error('❌ No audio path found for beat:', beat);
-    alert('Este beat no tiene audio disponible');
-    return;
-  }
-
-  // Preparar beat para el player global
-  const beatData = {
-    id: beat.id,
-    nombre: beat.title || beat.name || 'Sin título',
-    productor: beat.producer || beat.artist || 'Productor desconocido',
-    portada: beat.cover ? `/${beat.cover}` : '/assets/img/placeholder.jpg',
-    archivo: audioPath.startsWith('/') ? audioPath : `/${audioPath}`,
-    precio: beat.price || 0
-  };
-
-  // Reproducir usando el player global
-  if (window.wavaultPlayer) {
-    window.wavaultPlayer.setBeat(beatData);
-  } else {
-    console.error('❌ Global player no inicializado');
-  }
-}
-
-  currentAudio.addEventListener('error', (e) => {
-    console.error('❌ Audio error:', e);
-    console.error('❌ Audio error details:', currentAudio.error);
-    alert('Error cargando el audio. Verifica que el archivo existe.');
+  currentAudio = new Audio(`/${audioPath}`);
+  currentAudio.volume = 0.8;
+  
+  const player = document.getElementById('globalPlayer');
+  const coverImg = document.getElementById('playerCover');
+  const title = document.getElementById('playerTitle');
+  const artist = document.getElementById('playerArtist');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  
+  coverImg.src = beat.cover ? `/${beat.cover}` : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop';
+  title.textContent = beat.title;
+  artist.textContent = beat.producer || beat.artist || 'Unknown';
+  
+  player.style.display = 'block';
+  currentAudio.play();
+  playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+  
+  currentAudio.addEventListener('timeupdate', updateProgress);
+  currentAudio.addEventListener('ended', () => {
+    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+  });
+  currentAudio.addEventListener('loadedmetadata', () => {
+    document.getElementById('duration').textContent = formatTime(currentAudio.duration);
   });
   
   console.log(`🎵 Reproduciendo: ${beat.title}`);
@@ -369,31 +365,5 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
       renderizarBeats(filtered);
     });
-  }
-  
-  // Event listeners para controles del reproductor
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  const progressSlider = document.getElementById('progressSlider');
-  const volumeSlider = document.getElementById('volumeSlider');
-  const volumeBtn = document.getElementById('volumeBtn');
-  
-  if (playPauseBtn) {
-    playPauseBtn.addEventListener('click', togglePlayPause);
-  }
-  
-  if (progressSlider) {
-    progressSlider.addEventListener('input', (e) => {
-      seekAudio(e.target.value);
-    });
-  }
-  
-  if (volumeSlider) {
-    volumeSlider.addEventListener('input', (e) => {
-      changeVolume(e.target.value);
-    });
-  }
-  
-  if (volumeBtn) {
-    volumeBtn.addEventListener('click', toggleMute);
   }
 });

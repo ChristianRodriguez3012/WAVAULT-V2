@@ -1,0 +1,62 @@
+<!-- BARRA DE REPRODUCCIÓN GLOBAL - VERSIÓN MEJORADA -->
+<div class="player-wrapper">
+  <div class="player-container">
+    
+    <!-- Fila 1: Información del beat -->
+    <div class="player-info-row">
+      <div class="player-info-content">
+        <img id="playerCover" src="/assets/img/placeholder.jpg" alt="Cover" class="player-cover">
+        <div class="player-track-details">
+          <h3 id="playerTitle" class="player-title">Selecciona un beat</h3>
+          <p id="playerArtist" class="player-artist">Productor</p>
+          <p id="playerMeta" class="player-meta">- BPM • - KEY</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fila 2: Barra de progreso -->
+    <div class="player-progress-row">
+      <span id="currentTime" class="time-display">0:00</span>
+      <div class="progress-bar-container">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+          <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+        </div>
+      </div>
+      <span id="duration" class="time-display">0:00</span>
+    </div>
+
+    <!-- Fila 3: Controles -->
+    <div class="player-controls-row">
+      <!-- Botones de navegación -->
+      <div class="player-buttons-group">
+        <button id="prevBtn" class="player-btn" title="Beat anterior">
+          <i class="fas fa-step-backward"></i>
+        </button>
+        <button id="playPauseBtn" class="player-btn play-pause-btn" title="Reproducir">
+          <i class="fas fa-play"></i>
+        </button>
+        <button id="nextBtn" class="player-btn" title="Siguiente beat">
+          <i class="fas fa-step-forward"></i>
+        </button>
+      </div>
+
+      <!-- Espaciador -->
+      <div class="spacer"></div>
+
+      <!-- Controles secundarios -->
+      <div class="player-secondary-controls">
+        <!-- Loop -->
+        <button id="loopBtn" class="player-btn secondary-btn" title="Modo repetición">
+          <i class="fas fa-redo"></i>
+        </button>
+
+        <!-- Volumen -->
+        <button id="volumeBtn" class="player-btn secondary-btn" title="Volumen">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider" title="Volumen">
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,37 @@
+<!-- BARRA DE REPRODUCCIÓN PERSISTENTE - Footer Player -->
+<div class="player-wrapper">
+  <div class="player-container">
+    <!-- Información del beat -->
+    <div class="player-info">
+      <img id="playerCover" src="/assets/img/placeholder.jpg" alt="Cover" class="player-cover">
+      <div class="player-track-info">
+        <h4 id="playerTitle">-</h4>
+        <p id="playerArtist">-</p>
+      </div>
+    </div>
+
+    <!-- Controles del player -->
+    <div class="player-controls">
+      <!-- Botón Play/Pause -->
+      <button id="playPauseBtn" class="player-btn" title="Reproducir">
+        <i class="fas fa-play"></i>
+      </button>
+
+      <!-- Barra de progreso -->
+      <div class="player-progress">
+        <span id="currentTime" class="time-display">0:00</span>
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+          <input type="range" id="progressSlider" min="0" max="100" value="0" class="progress-slider">
+        </div>
+        <span id="duration" class="time-display">0:00</span>
+      </div>
+
+      <!-- Control de volumen -->
+      <button id="volumeBtn" class="player-btn" title="Volumen">
+        <i class="fas fa-volume-up"></i>
+      </button>
+      <input type="range" id="volumeSlider" min="0" max="100" value="80" class="volume-slider" title="Volumen">
+    </div>
+  </div>
+</div>
