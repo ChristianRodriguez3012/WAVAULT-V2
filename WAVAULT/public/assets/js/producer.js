@@ -18,16 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnNext = document.getElementById("btnNext");
   const progressBar = document.getElementById("progressBar");
   const volumeControl = document.getElementById("volumeControl");
-
-  const barraContainer = document.createElement("div");
-  barraContainer.style.display = "none";
-  barraContainer.style.marginTop = "1em";
-  const barraProgreso = document.createElement("progress");
-  barraProgreso.id = "barraSubida";
-  barraProgreso.max = 100;
-  barraProgreso.value = 0;
-  barraContainer.appendChild(barraProgreso);
-  document.getElementById("formSubirBeat").appendChild(barraContainer);
+  const currentTimeEl = document.getElementById("currentTime");
+  const totalDurationEl = document.getElementById("totalDuration");
+  const emailSpan = document.getElementById('productorEmail');
+  if (usuario && emailSpan) emailSpan.textContent = usuario.email;
 
   let beats = [];
   let playlist = [];
@@ -168,14 +162,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   audioPlayer.addEventListener("ended", reproducirAleatorio);
 
+  function formatTime(seconds) {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
   audioPlayer.addEventListener("loadedmetadata", () => {
     progressBar.max = audioPlayer.duration;
-    totalDurationEl.textContent = formatTime(audioPlayer.duration);
+    if (totalDurationEl) totalDurationEl.textContent = formatTime(audioPlayer.duration);
   });
 
   audioPlayer.addEventListener("timeupdate", () => {
     progressBar.value = audioPlayer.currentTime;
-    currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
+    if (currentTimeEl) currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
   });
 
   progressBar.addEventListener("input", () => {
@@ -270,73 +271,396 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 🧩 Subida del beat
-  document.getElementById('formSubirBeat').addEventListener('submit', function (e) {
-    e.preventDefault();
+  // 🧭 Navegación por secciones
+  document.querySelectorAll("a[data-seccion]").forEach(link => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      mostrarSeccion(link.dataset.seccion);
+    });
+  });
 
-    const title = document.getElementById('tituloBeat').value.trim();
-    const price = parseFloat(document.getElementById('precioBeat').value);
-    const tag1 = document.getElementById('tag1').value.trim();
-    const tag2 = document.getElementById('tag2').value.trim();
-    const tag3 = document.getElementById('tag3').value.trim();
-    const bpm = parseInt(document.getElementById('bpm').value);
-    const key = document.getElementById('key').value;
-    const audioFile = document.getElementById('archivoAudio').files[0];
-    const coverFile = document.getElementById('archivoPortada').files[0];
+  // 🧩 Wizard de subida
+  function initWizard() {
+    const wizardRoot = document.getElementById('wizardSubidaBeat');
+    if (!wizardRoot) return;
 
-    if (!title || isNaN(price) || !tag1 || !tag2 || !tag3 || isNaN(bpm) || !key || !audioFile || !coverFile) {
-      return alert("Por favor, completa todos los campos.");
+    const stepAudio = document.getElementById('step-audio');
+    const stepPortada = document.getElementById('step-portada');
+    const stepIA = document.getElementById('step-ia');
+    const stepConfirm = document.getElementById('step-confirmar');
+
+    const audioInput = document.getElementById('audioFileWizard');
+    const coverInput = document.getElementById('coverFileWizard');
+    const audioFileName = document.getElementById('audioFileName');
+    const coverFileName = document.getElementById('coverFileName');
+
+    const btnNextAudio = document.getElementById('btnNextAudio');
+    const btnBackPortada = document.getElementById('btnBackPortada');
+    const btnNextPortada = document.getElementById('btnNextPortada');
+    const btnBackIA = document.getElementById('btnBackIA');
+    const btnNextIA = document.getElementById('btnNextIA');
+    const btnBackConfirmar = document.getElementById('btnBackConfirmar');
+    const btnGuardarBeat = document.getElementById('btnGuardarBeat');
+
+    const iaStatus = document.getElementById('iaAnalysisStatus');
+    const iaResults = document.getElementById('iaAnalysisResults');
+    const iaInfo = document.getElementById('iaAnalysisInfo');
+    const iaTable = document.getElementById('iaConfidenceTable');
+
+    const confirmData = document.getElementById('confirmData');
+    const titleInput = document.getElementById('titleWizard');
+    const bpmInput = document.getElementById('bpmWizard');
+    const keySelect = document.getElementById('keyWizard');
+    const priceInput = document.getElementById('priceWizard');
+    const descInput = document.getElementById('descriptionWizard');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    // Tags UI
+    let tagsList = [];
+    const tagInput = document.getElementById('tagInputWizard');
+    const tagsListEl = document.getElementById('tagsListWizard');
+    const tagCountEl = document.getElementById('tagCountWizard');
+    const tagErrorEl = document.getElementById('tagErrorWizard');
+
+    let audioFile = null;
+    let coverFile = null;
+    let analysis = null;
+
+    const steps = [stepAudio, stepPortada, stepIA, stepConfirm];
+    function showStep(step) {
+      steps.forEach(s => s.style.display = s === step ? 'block' : 'none');
     }
 
-    const tags = `${tag1},${tag2},${tag3}`;
-    const formData = new FormData();
-    formData.append("title", title);
-    formData.append("price", price);
-    formData.append("tags", tags);
-    formData.append("bpm", bpm);
-    formData.append("key", key);
-    formData.append("producer", usuario.email);
-    formData.append("audio", audioFile);
-    formData.append("cover", coverFile);
+    function resetWizard() {
+      audioFile = null;
+      coverFile = null;
+      analysis = null;
+      tagsList = [];
+      audioInput.value = '';
+      coverInput.value = '';
+      titleInput.value = '';
+      bpmInput.value = '';
+      keySelect.value = '';
+      priceInput.value = '';
+      descInput.value = '';
+      uploadProgress.style.display = 'none';
+      uploadProgress.value = 0;
+      uploadStatus.textContent = '';
+      audioFileName.textContent = '';
+      coverFileName.textContent = '';
+      iaStatus.textContent = 'Procesando análisis...';
+      iaResults.style.display = 'none';
+      iaResults.innerHTML = '';
+      btnNextAudio.disabled = true;
+      btnNextPortada.disabled = true;
+      btnNextIA.disabled = true;
+      renderTags();
+      confirmData.innerHTML = '';
+      showStep(stepAudio);
+    }
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/subir-beat", true);
+    function renderTags() {
+      tagsListEl.innerHTML = '';
+      tagCountEl.textContent = tagsList.length;
+      tagsList.forEach((tag, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'tag-item';
+        chip.innerHTML = `${tag} <button type="button" data-idx="${idx}">×</button>`;
+        tagsListEl.appendChild(chip);
+      });
+      tagErrorEl.style.display = 'none';
+    }
 
-    xhr.upload.onprogress = function (e) {
-      if (e.lengthComputable) {
-        barraContainer.style.display = "block";
-        barraProgreso.value = (e.loaded / e.total) * 100;
+    tagsListEl.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        tagsList.splice(idx, 1);
+        renderTags();
       }
-    };
+    });
 
-    xhr.onload = async function () {
-      barraContainer.style.display = "none";
-      let res = null;
+    tagInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const tag = tagInput.value.trim().toLowerCase().replace(/^#+/, '').slice(0, 30);
+        if (!tag) {
+          tagErrorEl.textContent = 'El tag no puede estar vacío.';
+          tagErrorEl.style.display = 'block';
+          return;
+        }
+        if (tagsList.includes(tag)) {
+          tagErrorEl.textContent = 'Este tag ya fue agregado.';
+          tagErrorEl.style.display = 'block';
+          return;
+        }
+        if (tagsList.length >= 30) {
+          tagErrorEl.textContent = 'Máximo 30 tags permitidos.';
+          tagErrorEl.style.display = 'block';
+          return;
+        }
+        tagsList.push(tag);
+        tagInput.value = '';
+        renderTags();
+      }
+    });
+
+    audioInput.addEventListener('change', () => {
+      audioFile = audioInput.files[0] || null;
+      audioFileName.textContent = audioFile ? audioFile.name : '';
+      btnNextAudio.disabled = !audioFile;
+    });
+
+    coverInput.addEventListener('change', () => {
+      coverFile = coverInput.files[0] || null;
+      coverFileName.textContent = coverFile ? coverFile.name : '';
+      btnNextPortada.disabled = !coverFile;
+    });
+
+    btnNextAudio.addEventListener('click', () => {
+      showStep(stepPortada);
+    });
+
+    btnBackPortada.addEventListener('click', () => showStep(stepAudio));
+    btnNextPortada.addEventListener('click', () => {
+      showStep(stepIA);
+      runAnalysis();
+    });
+    btnBackIA.addEventListener('click', () => showStep(stepPortada));
+    btnNextIA.addEventListener('click', () => {
+      renderConfirm();
+      showStep(stepConfirm);
+    });
+    btnBackConfirmar.addEventListener('click', () => showStep(stepIA));
+
+    function extraerPistasDesdeNombre(filename) {
+      const base = filename.replace(/\.[^/.]+$/, '');
+      const limpio = base.replace(/[\._]+/g, ' ').trim();
+      const bpmMatch = limpio.match(/(\d{2,3})\s*bpm/i);
+      const keyMatch = limpio.match(/\b([A-G](?:#|b)?\s*(?:maj|major|min|minor|m))\b/i);
+      const partes = limpio.split(/[-|]/).map(p => p.trim()).filter(Boolean);
+      const tags = partes.slice(1, 4);
+      return {
+        tituloSugerido: partes[0] || limpio,
+        bpmSugerido: bpmMatch ? bpmMatch[1] : '',
+        keySugerida: keyMatch ? keyMatch[1].replace(/major/i, 'Maj').replace(/minor|m/i, 'Min').toUpperCase() : '',
+        tagsSugeridas: tags,
+      };
+    }
+
+    async function runAnalysis() {
+      if (!audioFile) {
+        iaStatus.textContent = 'Selecciona un audio antes de analizar.';
+        btnNextIA.disabled = true;
+        return;
+      }
+
+      iaStatus.textContent = 'Analizando audio con IA...';
+      iaResults.style.display = 'none';
+      iaResults.innerHTML = '';
+      btnNextIA.disabled = true;
+
+      const pistas = extraerPistasDesdeNombre(audioFile.name);
+      if (pistas.tituloSugerido && !titleInput.value) titleInput.value = pistas.tituloSugerido;
+      if (pistas.bpmSugerido && !bpmInput.value) bpmInput.value = pistas.bpmSugerido;
+      if (pistas.keySugerida && !keySelect.value) {
+        const option = Array.from(keySelect.options).find(opt => opt.value.toLowerCase().includes(pistas.keySugerida.toLowerCase().split(' ')[0]));
+        if (option) keySelect.value = option.value;
+      }
+      pistas.tagsSugeridas.forEach(tag => {
+        const clean = tag.trim().toLowerCase();
+        if (clean && !tagsList.includes(clean) && tagsList.length < 30) tagsList.push(clean);
+      });
+      renderTags();
+
+      const formData = new FormData();
+      formData.append('audio', audioFile);
+      formData.append('filename', audioFile.name);
+      formData.append('hints', JSON.stringify(pistas));
+
       try {
-        res = JSON.parse(xhr.responseText);
-      } catch (e) {
-        console.warn("⚠️ Respuesta no válida:", xhr.responseText);
+        const res = await fetch('/api/analyze-beat', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.success || data.analysis.status !== 'success') {
+          throw new Error(data.error || 'No se pudo completar el análisis.');
+        }
+        analysis = data.analysis;
+        applyAnalysis(analysis);
+        iaStatus.textContent = '✅ Análisis completado.';
+        btnNextIA.disabled = false;
+      } catch (err) {
+        console.error('❌ Error de análisis:', err);
+        iaStatus.textContent = '❌ Error: ' + (err.message || 'No se pudo analizar.');
+        btnNextIA.disabled = false; // permitir continuar manual
+      }
+    }
+
+    function applyAnalysis(analysisData) {
+      const tech = analysisData.technical_data || {};
+      const ai = analysisData.ai_inference || {};
+      const report = analysisData.confidence_report || {};
+
+      const parts = [];
+      if (tech.bpm) parts.push(`BPM: ${tech.bpm}`);
+      if (tech.key) parts.push(`Key: ${tech.key}`);
+      if (ai.mood) parts.push(`Mood: ${ai.mood}`);
+
+      iaResults.innerHTML = `<p>${parts.join(' • ')}</p>`;
+      iaResults.style.display = 'block';
+
+      const summary = report.summary || 'Parseo del filename → análisis de audio (BPM/Key) → Gemini para mood y tags.';
+      const method = report.method || 'Fuentes: filename (si existe) + audio + Gemini 2.0 Flash.';
+      iaInfo.style.display = 'block';
+      iaInfo.innerHTML = `<strong>Cómo se generó:</strong> ${summary}<br><small>${method}</small>`;
+
+      const fallbackRows = [
+        { parameter: 'Nombre/Referencia', value: analysisData.filename || audioFile?.name || '-', confidence: 85, source: 'filename', rationale: 'Parseo directo del archivo' },
+        { parameter: 'Key', value: tech.key || '-', confidence: tech.key_confidence ?? 80, source: tech.detection_source?.key_from_filename ? 'filename' : 'audio', rationale: 'Filename o detección cromática' },
+        { parameter: 'BPM', value: tech.bpm || '-', confidence: tech.bpm_confidence ?? 80, source: tech.detection_source?.bpm_from_filename ? 'filename' : 'audio', rationale: 'Filename o análisis de tempo' },
+        { parameter: 'Mood', value: ai.mood || '-', confidence: 78, source: 'gemini', rationale: 'Gemini usando BPM/Key y hints' },
+        { parameter: 'Tags (IA)', value: (ai.tags || []).slice(0,5).join(', ') || '-', confidence: 80, source: 'gemini', rationale: 'Gemini priorizando tags obligatorios' }
+      ];
+
+      const rows = Array.isArray(report.items) && report.items.length ? report.items : fallbackRows;
+
+      const badge = (c) => {
+        if (c >= 80) return `<span class="badge-good">${c}%</span>`;
+        if (c >= 60) return `<span class="badge-mid">${c}%</span>`;
+        return `<span class="badge-low">${c}%</span>`;
+      };
+
+      iaTable.style.display = 'block';
+      iaTable.innerHTML = `
+        <table>
+          <thead><tr><th>Parámetro</th><th>Valor</th><th>Confianza</th><th>Fuente</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr title="${(r.rationale || '').replace(/"/g, '')}"><td>${r.parameter || r.label}</td><td>${r.value || r.val}</td><td>${badge(r.confidence ?? r.conf ?? 0)}</td><td>${r.source || '-'}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+
+      if (tech.bpm) bpmInput.value = tech.bpm;
+      if (tech.key) {
+        const normalized = normalizeKey(tech.key);
+        const opt = Array.from(keySelect.options).find(o => o.value.toLowerCase() === normalized.toLowerCase());
+        if (opt) {
+          keySelect.value = opt.value;
+        }
       }
 
-      if (xhr.status >= 200 && xhr.status < 300) {
-        mostrarModal("✅ Beat subido exitosamente.");
-        document.getElementById('formSubirBeat').reset();
-        document.getElementById("labelAudio").textContent = "🎧 Archivo de Audio";
-        document.getElementById("labelPortada").textContent = "🖼️ Portada del Beat";
-        await cargarBeats();
-        mostrarSeccion("misBeats");
-      } else {
-        mostrarModal((res && res.error) || "❌ Error al subir el beat.");
+      if (ai.tags && Array.isArray(ai.tags)) {
+        tagsList = ai.tags.slice(0, 30).map(t => t.trim().toLowerCase()).filter(Boolean);
+        renderTags();
       }
-    };
+    }
 
-    xhr.onerror = function () {
-      barraContainer.style.display = "none";
-      mostrarModal("❌ Error de red al subir el beat.");
-    };
+    function normalizeKey(raw) {
+      if (!raw) return '';
+      const cleaned = raw.trim().replace(/\s+/g, ' ');
+      const lower = cleaned.toLowerCase();
+      // Detect note (with #/b) and quality
+      const match = lower.match(/^([a-g][#b]?)[\s-]*(maj|major|min|minor|m)?/);
+      if (!match) return cleaned;
+      const note = match[1].toUpperCase();
+      const quality = match[2] ? match[2] : '';
+      let q = '';
+      if (quality.includes('maj')) q = 'Maj';
+      else if (quality.includes('min') || quality === 'm') q = 'Min';
+      else q = 'Maj';
+      return `${note} ${q}`.trim();
+    }
 
-    xhr.send(formData);
-  });
+    function renderConfirm() {
+      const audioName = audioFile ? audioFile.name : 'Sin archivo';
+      const coverName = coverFile ? coverFile.name : 'Sin portada';
+      const bpmVal = bpmInput.value || '-';
+      const keyVal = keySelect.value || '-';
+      confirmData.innerHTML = `
+        <p>🎧 Audio: <strong>${audioName}</strong></p>
+        <p>🖼️ Portada: <strong>${coverName}</strong></p>
+        <p>🎵 BPM: <strong>${bpmVal}</strong> • Key: <strong>${keyVal}</strong></p>
+        <p>🏷️ Tags: <strong>${tagsList.map(t => `#${t}`).join(' ') || 'Sin tags'}</strong></p>
+      `;
+    }
+
+    btnGuardarBeat.addEventListener('click', () => {
+      if (!audioFile || !coverFile) {
+        alert('Debes seleccionar audio y portada.');
+        return;
+      }
+
+      const title = titleInput.value.trim() || (audioFile?.name ?? '').split('.')[0];
+      const price = parseFloat(priceInput.value);
+      const bpm = parseInt(bpmInput.value, 10);
+      const key = keySelect.value;
+
+      if (!title || isNaN(price) || price <= 0 || isNaN(bpm) || bpm < 50 || bpm > 220 || !key) {
+        alert('Completa título, precio (>0), BPM (50-220) y key.');
+        return;
+      }
+
+      if (tagsList.length < 3) {
+        tagErrorEl.textContent = 'Debes agregar mínimo 3 tags.';
+        tagErrorEl.style.display = 'block';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('price', price);
+      formData.append('tags', tagsList.join(','));
+      formData.append('bpm', bpm);
+      formData.append('key', key);
+      formData.append('producer', usuario.email);
+      formData.append('audio', audioFile);
+      formData.append('cover', coverFile);
+      if (descInput.value.trim()) formData.append('description', descInput.value.trim());
+
+      uploadProgress.style.display = 'block';
+      uploadStatus.textContent = 'Subiendo...';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/subir-beat', true);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          uploadProgress.value = pct;
+          uploadStatus.textContent = `Subiendo... ${pct}%`;
+        }
+      };
+
+      xhr.onload = async () => {
+        let res = null;
+        try {
+          res = JSON.parse(xhr.responseText);
+        } catch (err) {
+          console.warn('Respuesta no válida:', xhr.responseText);
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          uploadStatus.textContent = '✅ Beat subido';
+          uploadProgress.value = 100;
+          await cargarBeats();
+          mostrarModal('✅ Beat subido exitosamente.');
+          resetWizard();
+          mostrarSeccion('misBeats');
+        } else {
+          uploadStatus.textContent = '❌ Error al subir';
+          mostrarModal((res && res.error) || '❌ Error al subir el beat.');
+        }
+      };
+
+      xhr.onerror = () => {
+        uploadStatus.textContent = '❌ Error de red al subir';
+        mostrarModal('❌ Error de red al subir el beat.');
+      };
+
+      xhr.send(formData);
+    });
+
+    resetWizard();
+  }
 
   function mostrarModal(mensaje) {
     let modal = document.getElementById("modalMensaje");
@@ -380,8 +704,21 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(() => mostrarModal("❌ Error al eliminar el beat."));
   }
 
+  window.cerrarSesion = function () {
+    localStorage.removeItem('usuarioActivo');
+    window.location.href = '../login.html';
+  };
+
+  window.mostrarModal = mostrarModal;
+
+  window.cerrarModal = function () {
+    const modal = document.getElementById('modalConfirmacion');
+    if (modal) modal.style.display = 'none';
+  };
+
   // Inicial
   cargarBeats();
   configurarBuscador();
+  initWizard();
   mostrarSeccion("feed");
 });

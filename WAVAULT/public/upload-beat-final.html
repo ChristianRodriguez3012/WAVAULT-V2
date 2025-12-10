@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAVAULT - Subir Beat</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .upload-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+
+        .upload-title {
+            font-size: 2em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtitle {
+            color: #999;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 50px 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .filename-display {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            word-break: break-all;
+            color: #555;
+        }
+
+        .filename-label {
+            font-size: 0.85em;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .form-group {
+            margin: 20px 0;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #ccc;
+        }
+
+        /* MODAL DE ANÁLISIS */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 30px 90px rgba(0,0,0,0.4);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2em;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .analysis-loading {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .analysis-loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .loading-subtext {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .modal-body {
+            display: none;
+        }
+
+        .modal-body.active {
+            display: block;
+        }
+
+        .data-section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 1.05em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-icon {
+            font-size: 1.2em;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .data-row:hover {
+            background: #f5f5f5;
+            border-color: #d0d0d0;
+        }
+
+        .data-row label {
+            font-weight: 700;
+            color: #333;
+            min-width: 140px;
+            font-size: 0.95em;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .data-row input {
+            padding: 10px 14px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.95em;
+            background: white;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .data-row input[readonly] {
+            background: #f0f0f0;
+            color: #555;
+            font-weight: 500;
+            cursor: not-allowed;
+        }
+
+        .data-row input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .confidence {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9em;
+            font-weight: bold;
+            padding: 6px 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            margin-left: auto;
+        }
+
+        .confidence.high {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .confidence.medium {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .confidence.low {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .tags-container {
+            margin-top: 15px;
+        }
+
+        .tags-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tags-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            transition: transform 0.2s;
+        }
+
+        .tag:hover {
+            transform: scale(1.05);
+        }
+
+        .tag-remove {
+            margin-left: 6px;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .tag-remove:hover {
+            opacity: 1;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .modal-footer button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-accept {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+        }
+
+        .btn-accept:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-reject {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-reject:hover {
+            background: #ccc;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .structure-info {
+            background: #e8ebff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .structure-info strong {
+            color: #667eea;
+        }
+
+        .price-section {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* Tabla de Confianza */
+        #confidenceTable {
+            width: 100%;
+        }
+
+        #confidenceTable tr {
+            transition: background 0.2s;
+        }
+
+        #confidenceTable tr:hover {
+            background: #f0f0f0;
+        }
+
+        #confidenceTable td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: middle;
+        }
+
+        #confidenceTable td:nth-child(1) {
+            font-weight: 500;
+            color: #333;
+            text-align: left;
+        }
+
+        #confidenceTable td:nth-child(2) {
+            text-align: center;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        #confidenceTable td:nth-child(3) {
+            text-align: left;
+            color: #666;
+        }
+
+        #confidenceTable tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upload-container">
+            <h1 class="upload-title">🎵 Subir Beat a WAVAULT</h1>
+            <p class="upload-subtitle">Carga tu beat y el sistema analizará automáticamente los metadatos</p>
+
+            <div class="structure-info">
+                <strong>Estructura de nombre recomendada:</strong><br>
+                NOMBRE DEL BEAT - TYPE DEL BEAT - REFERENCIA/ARTISTA - KEY - BPM<br><br>
+                <strong>Ejemplo:</strong><br>
+                "Tropical Vibes - Drake Type Beat - Drake - Fm - 90"
+            </div>
+
+            <div class="alert" id="alertBox"></div>
+
+            <form id="uploadForm">
+                <!-- Área de carga -->
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="audioFile" accept=".mp3,.wav,.flac">
+                    <div class="upload-icon">📤</div>
+                    <p class="upload-text">Arrastra aquí o haz clic para seleccionar</p>
+                    <p class="upload-hint">Formato: MP3, WAV, FLAC</p>
+                </div>
+
+                <!-- Nombre del archivo -->
+                <div id="filenameSection" style="display: none;">
+                    <div class="filename-label">📁 Archivo seleccionado:</div>
+                    <div class="filename-display" id="filenameDisplay"></div>
+
+                    <div class="price-section">
+                        <div class="form-group">
+                            <label>💰 Precio (en créditos)</label>
+                            <input type="number" id="price" placeholder="0" min="1" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>📝 Descripción (opcional)</label>
+                            <textarea id="description" placeholder="Describe tu beat..." rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn">💾 Confirmar Precio y Guardar Beat</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE ANÁLISIS Y CONFIRMACIÓN -->
+    <div class="modal" id="analysisModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>🎯 Análisis de Metadatos</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+
+            <!-- Estado de carga -->
+            <div class="analysis-loading active" id="analysisLoading">
+                <div class="spinner"></div>
+                <p class="loading-text">Analizando beat...</p>
+                <p class="loading-subtext">Procesando: Nombre → Audio → Tags</p>
+            </div>
+
+            <!-- Resultados -->
+            <div class="modal-body" id="modalBody">
+                <!-- SECCIÓN 1: METADATOS DEL NOMBRE -->
+                <div class="data-section">
+                    <div class="section-title">
+                        <span class="section-icon">📝</span>
+                        Metadatos del Nombre del Archivo
+                    </div>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                        Extraído automáticamente del nombre: <strong>NOMBRE - TYPE - REFERENCIA - KEY - BPM</strong>
+                    </p>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>Nombre del Beat:</label>
+                            <input type="text" id="beatName" readonly>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="confidence" id="confBeatName"></span>
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confBeatNameValue"></div>
+                        </div>
+                    </div>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>Tipo de Beat:</label>
+                            <input type="text" id="beatType" readonly>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="confidence" id="confBeatType"></span>
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confBeatTypeValue"></div>
+                        </div>
+                    </div>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>Referencia/Artista:</label>
+                            <input type="text" id="reference" readonly>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="confidence" id="confReference"></span>
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confReferenceValue"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 2: ANÁLISIS DE AUDIO -->
+                <div class="data-section">
+                    <div class="section-title">
+                        <span class="section-icon">🎵</span>
+                        Análisis de Audio (Detectado)
+                    </div>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                        Analizado automáticamente del archivo de audio mediante IA
+                    </p>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>Key (Tonalidad):</label>
+                            <input type="text" id="keyField" placeholder="Ej: Fm, Am, C#">
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="confidence" id="confKey"></span>
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confKeyValue"></div>
+                        </div>
+                    </div>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>BPM:</label>
+                            <input type="number" id="bpmField" min="50" max="220" placeholder="Ej: 90">
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="confidence" id="confBpm"></span>
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confBpmValue"></div>
+                        </div>
+                    </div>
+
+                    <div class="data-row">
+                        <div style="flex: 1;">
+                            <label>Mood (Sentimiento):</label>
+                            <input type="text" id="moodField" placeholder="Ej: Dark & Atmospheric">
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.8em; color: #999; margin-top: 2px;" id="confMoodValue"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: TAGS SUGERIDOS -->
+                <div class="data-section">
+                    <div class="section-title">
+                        <span class="section-icon">🏷️</span>
+                        Tags Sugeridos (Generados con IA)
+                    </div>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                        18-30 tags generados automáticamente por Gemini AI con búsqueda web
+                    </p>
+                    <p style="color: #999; font-size: 0.85em; margin-bottom: 10px;">
+                        💡 Puedes remover tags innecesarios haciendo clic en la X
+                    </p>
+                    <div class="tags-display" id="tagsDisplay"></div>
+                </div>
+
+                <!-- NOTA IMPORTANTE -->
+                <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 6px; margin-top: 20px; margin-bottom: 20px;">
+                    <p style="color: #1565c0; font-size: 0.95em; margin: 0; line-height: 1.6;">
+                        <strong>📋 Flujo de Análisis:</strong><br>
+                        ✅ <strong>OBLIGATORIO:</strong> Este análisis se ejecuta automáticamente al cargar el beat.<br>
+                        ✏️ <strong>OPCIONAL:</strong> Puedes editar Key, BPM y Mood si deseas ajustar los valores detectados.<br>
+                        🏷️ <strong>OPCIONAL:</strong> Puedes remover tags haciendo clic en la X de cada uno.<br>
+                        ✓ Después de aceptar, la plantilla se completará y podrás cargar el beat.
+                    </p>
+                </div>
+
+                <!-- TABLA RESUMEN DE CONFIANZA -->
+                <div style="background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 0;">
+                    <div style="font-weight: bold; color: #333; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        📊 Resumen de Confianza
+                    </div>
+                    <table style="width: 100%; font-size: 0.9em;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #ddd;">
+                                <th style="text-align: left; padding: 8px; color: #666; font-weight: 600;">Parámetro</th>
+                                <th style="text-align: center; padding: 8px; color: #666; font-weight: 600;">Confianza</th>
+                                <th style="text-align: left; padding: 8px; color: #666; font-weight: 600;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="confidenceTable">
+                            <!-- Se llena dinámicamente con JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div class="modal-footer">
+                <button class="modal-footer button btn-reject" onclick="rejectAnalysis()">❌ Rechazar y Re-analizar</button>
+                <button class="modal-footer button btn-accept" id="acceptBtn" onclick="acceptAnalysis()" style="display: flex;">✅ Aceptar y Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let uploadedFile = null;
+        let analysisData = null;
+        let suggestedTags = [];
+
+        // Drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        const audioFile = document.getElementById('audioFile');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            audioFile.files = e.dataTransfer.files;
+            handleFileSelect();
+        });
+
+        uploadArea.addEventListener('click', () => audioFile.click());
+        audioFile.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            if (audioFile.files.length > 0) {
+                uploadedFile = audioFile.files[0];
+                document.getElementById('filenameDisplay').textContent = uploadedFile.name;
+                document.getElementById('filenameSection').style.display = 'block';
+                
+                // ✅ INICIA ANÁLISIS AUTOMÁTICO INMEDIATAMENTE AL SELECCIONAR
+                console.log('🎵 Beat seleccionado - Iniciando análisis automático...');
+                openModal();
+                startAnalysis();
+            }
+        }
+
+        // Submit form - DESPUÉS DE ANÁLISIS YA COMPLETADO
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('📝 Formulario enviado - Guardando beat...');
+
+                if (!uploadedFile) {
+                    showAlert('❌ Por favor selecciona un archivo de audio', 'error');
+                    return;
+                }
+
+                const price = document.getElementById('price').value;
+                if (!price || price <= 0) {
+                    showAlert('❌ Por favor ingresa un precio válido', 'error');
+                    return;
+                }
+
+                console.log('✅ Validaciones pasadas - Guardando en base de datos');
+                
+                // Recopilar datos finales
+                const bpmValue = parseInt(document.getElementById('bpmField').value) || 0;
+                const keyValue = document.getElementById('keyField').value.trim();
+                
+                const finalData = {
+                    beat_name: document.getElementById('beatName').value,
+                    beat_type: document.getElementById('beatType').value,
+                    reference: document.getElementById('reference').value,
+                    key: keyValue,
+                    bpm: bpmValue,
+                    mood: document.getElementById('moodField').value,
+                    tags: suggestedTags.join(','),
+                    price: price,
+                    description: document.getElementById('description').value || '',
+                    audio: uploadedFile
+                };
+
+                // Guardar en BD
+                saveToDatabase(finalData);
+            });
+        } else {
+            console.error('❌ Formulario no encontrado');
+        }
+
+        async function startAnalysis() {
+            const formData = new FormData();
+            formData.append('audio', uploadedFile);
+
+            try {
+                console.log('📋 Parseando nombre:', uploadedFile.name);
+                
+                // 1. Extraer metadata del nombre
+                const parseResponse = await fetch('/api/parse-filename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: uploadedFile.name })
+                });
+                
+                console.log('Parse response status:', parseResponse.status);
+                const filenameData = parseResponse.ok ? await parseResponse.json() : null;
+                console.log('Filename data:', filenameData);
+
+                console.log('🎵 Analizando beat...');
+                // 2. Analizar audio
+                const analysisResponse = await fetch('/api/analyze-beat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                console.log('Analysis response status:', analysisResponse.status);
+                const analysisResult = await analysisResponse.json();
+                console.log('Analysis result:', analysisResult);
+
+                if (analysisResult.success) {
+                    analysisData = analysisResult.analysis;
+                    console.log('✅ Análisis completado');
+                    displayAnalysis(filenameData, analysisData);
+                } else {
+                    console.error('Analysis failed:', analysisResult.message);
+                    showAlert(`❌ Error en análisis: ${analysisResult.message}`, 'error');
+                    closeModal();
+                }
+            } catch (error) {
+                console.error('Error en startAnalysis:', error);
+                showAlert(`❌ Error: ${error.message}`, 'error');
+                closeModal();
+            }
+        }
+
+        function displayAnalysis(filenameData, audioData) {
+            // Sección 1: Nombre
+            const beatName = filenameData?.beat_name || '';
+            const beatType = filenameData?.beat_type || '';
+            const reference = filenameData?.reference || '';
+
+            document.getElementById('beatName').value = beatName;
+            document.getElementById('beatType').value = beatType;
+            document.getElementById('reference').value = reference;
+
+            setConfidence('BeatName', filenameData?.beat_name_confidence || 0);
+            setConfidence('BeatType', filenameData?.beat_type_confidence || 0);
+            setConfidence('Reference', filenameData?.reference_confidence || 0);
+
+            // Sección 2: Audio
+            const tech = audioData.technical_data;
+            const ai = audioData.ai_inference;
+
+            document.getElementById('keyField').value = tech.key || '';
+            document.getElementById('bpmField').value = tech.bpm || '';
+            document.getElementById('moodField').value = ai.mood || '';
+
+            setConfidence('Key', tech.key_confidence || 0);
+            setConfidence('Bpm', tech.bpm_confidence || 0);
+
+            // Sección 3: Tags
+            suggestedTags = ai.tags || [];
+            displayTags();
+
+            // Mostrar resultados y botón de aceptar
+            document.getElementById('analysisLoading').classList.remove('active');
+            document.getElementById('modalBody').classList.add('active');
+            document.getElementById('acceptBtn').style.display = 'flex';
+        }
+
+        function displayTags() {
+            const tagsDisplay = document.getElementById('tagsDisplay');
+            tagsDisplay.innerHTML = suggestedTags.map((tag, idx) => 
+                `<span class="tag">${tag}<span class="tag-remove" onclick="removeTag(${idx})">✕</span></span>`
+            ).join('');
+        }
+
+        function removeTag(idx) {
+            suggestedTags.splice(idx, 1);
+            displayTags();
+        }
+
+        function setConfidence(field, percentage) {
+            const elem = document.getElementById(`conf${field}`);
+            const valueElem = document.getElementById(`conf${field}Value`);
+            let level = 'low';
+            let icon = '⚠️';
+            let label = 'Baja confianza';
+
+            if (percentage >= 80) {
+                level = 'high';
+                icon = '✅';
+                label = 'Alta confianza';
+            } else if (percentage >= 60) {
+                level = 'medium';
+                icon = '⚡';
+                label = 'Confianza media';
+            } else if (percentage > 0) {
+                label = 'Baja confianza';
+            } else {
+                label = 'No detectado';
+            }
+
+            elem.className = `confidence ${level}`;
+            elem.textContent = `${icon} ${percentage}%`;
+            
+            if (valueElem) {
+                valueElem.textContent = label;
+            }
+
+            // Actualizar tabla de confianza
+            updateConfidenceTable(field, percentage, label, icon);
+        }
+
+        function updateConfidenceTable(field, percentage, label, icon) {
+            const table = document.getElementById('confidenceTable');
+            const rows = table.querySelectorAll('tr');
+            const fieldNames = {
+                'BeatName': 'Nombre del Beat',
+                'BeatType': 'Tipo de Beat',
+                'Reference': 'Referencia/Artista',
+                'Key': 'Key',
+                'Bpm': 'BPM'
+            };
+
+            const fieldName = fieldNames[field];
+            let rowFound = false;
+
+            // Actualizar fila existente
+            rows.forEach(row => {
+                if (row.cells[0]?.textContent === fieldName) {
+                    row.cells[1].innerHTML = `<strong>${percentage}%</strong>`;
+                    row.cells[2].innerHTML = `${icon} ${label}`;
+                    rowFound = true;
+                }
+            });
+
+            // Si no existe, agregar fila
+            if (!rowFound && fieldName) {
+                const row = table.insertRow();
+                row.innerHTML = `
+                    <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">${fieldName}</td>
+                    <td style="text-align: center; padding: 8px; border-bottom: 1px solid #e0e0e0;"><strong>${percentage}%</strong></td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">${icon} ${label}</td>
+                `;
+            }
+        }
+
+        function openModal() {
+            console.log('🔓 Abriendo modal...');
+            const modal = document.getElementById('analysisModal');
+            const loading = document.getElementById('analysisLoading');
+            const body = document.getElementById('modalBody');
+            const btn = document.getElementById('acceptBtn');
+            
+            if (!modal) console.error('❌ Modal no encontrado');
+            if (!loading) console.error('❌ Loading no encontrado');
+            if (!body) console.error('❌ Body no encontrado');
+            if (!btn) console.error('❌ Button no encontrado');
+            
+            if (modal) modal.classList.add('active');
+            if (loading) loading.classList.add('active');
+            if (body) body.classList.remove('active');
+            if (btn) btn.style.display = 'none';
+            
+            console.log('✅ Modal abierto');
+        }
+
+        function closeModal() {
+            document.getElementById('analysisModal').classList.remove('active');
+            analysisData = null;
+        }
+
+        function rejectAnalysis() {
+            closeModal();
+            if (uploadedFile) {
+                setTimeout(() => {
+                    openModal();
+                    startAnalysis();
+                }, 300);
+            } else {
+                showAlert('⚠️ Selecciona un archivo para re-analizar.', 'error');
+            }
+        }
+
+        function acceptAnalysis() {
+            if (!analysisData) return;
+
+            // Recopilar datos finales
+            const bpmValue = parseInt(document.getElementById('bpmField').value) || 0;
+            const keyValue = document.getElementById('keyField').value.trim();
+            
+            // Validación de BPM
+            if (bpmValue < 50 || bpmValue > 220) {
+                showAlert('❌ BPM debe estar entre 50 y 220', 'error');
+                return;
+            }
+            
+            // Validación de Key
+            if (!keyValue) {
+                showAlert('❌ Debes especificar la tonalidad (Key)', 'error');
+                return;
+            }
+
+            console.log('✅ Análisis aceptado - Cerrando modal');
+            // Solo cierra el modal, el precio se pide en el formulario
+            closeModal();
+            document.getElementById('filenameSection').style.display = 'block';
+        }
+
+        async function saveToDatabase(data) {
+            const formData = new FormData();
+            formData.append('beat_name', data.beat_name);
+            formData.append('beat_type', data.beat_type);
+            formData.append('reference', data.reference);
+            formData.append('key', data.key);
+            formData.append('bpm', data.bpm);
+            formData.append('mood', data.mood);
+            formData.append('tags', data.tags);
+            formData.append('price', data.price);
+            formData.append('description', data.description);
+            formData.append('audio', data.audio);
+            formData.append('producer', 'username'); // Obtener del usuario autenticado
+
+            try {
+                const response = await fetch('/upload-beat', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('✅ ¡Beat guardado exitosamente!', 'success');
+                    document.getElementById('uploadForm').reset();
+                    document.getElementById('filenameSection').style.display = 'none';
+                    uploadedFile = null;
+                    setTimeout(() => window.location.href = '/dashboard', 2000);
+                } else {
+                    showAlert(`❌ Error: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.className = `alert show ${type}`;
+            alertBox.textContent = message;
+
+            if (type === 'success') {
+                setTimeout(() => {
+                    alertBox.className = 'alert';
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

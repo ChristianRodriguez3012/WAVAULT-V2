@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador de Beats - WAVAULT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+
+        .upload-area input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 12px;
+        }
+
+        #fileName {
+            margin-top: 10px;
+            color: #27ae60;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-analyze:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-clear {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #c0392b;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .result-section {
+            margin-bottom: 20px;
+        }
+
+        .result-title {
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .technical-data {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .data-item {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .data-label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .data-value {
+            color: #667eea;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .mood-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .mood-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .mood-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            background: #e8ebff;
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Analizador de Beats</h1>
+        <p class="subtitle">Descubre las características técnicas y el mood de tu música</p>
+
+        <div class="info-box">
+            ℹ️ Sube un archivo de audio (MP3, WAV, etc.) para analizar su BPM, tonalidad, mood y más.
+        </div>
+
+        <!-- Upload Area -->
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Arrastra tu beat aquí</div>
+            <div class="upload-subtext">o haz clic para seleccionar</div>
+            <input type="file" id="audioFile" accept="audio/*">
+            <div id="fileName"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-group">
+            <button class="btn-analyze" id="analyzeBtn" disabled>Analizar Beat</button>
+            <button class="btn-clear" id="clearBtn">Limpiar</button>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analizando tu beat...</p>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div class="error" id="errorMsg"></div>
+        <div class="success" id="successMsg"></div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+            <!-- Datos Técnicos -->
+            <div class="result-section">
+                <div class="result-title">📊 Datos Técnicos</div>
+                <div class="technical-data">
+                    <div class="data-item">
+                        <div class="data-label">BPM</div>
+                        <div class="data-value" id="bpmValue">-</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Tonalidad</div>
+                        <div class="data-value" id="keyValue">-</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Duración</div>
+                        <div class="data-value" id="durationValue">-</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-label">Brillo Espectral</div>
+                        <div class="data-value" id="spectralValue">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IA Inference -->
+            <div class="result-section">
+                <div class="result-title">🤖 Análisis IA</div>
+                <div class="mood-container">
+                    <div class="mood-label">Mood / Sentimiento</div>
+                    <div class="mood-value" id="moodValue">-</div>
+                </div>
+
+                <div>
+                    <div class="result-title" style="font-size: 14px; margin-bottom: 10px;">Tags Descriptivos</div>
+                    <div class="tags" id="tagsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById("uploadArea");
+        const audioFile = document.getElementById("audioFile");
+        const fileName = document.getElementById("fileName");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        const clearBtn = document.getElementById("clearBtn");
+        const loading = document.getElementById("loading");
+        const errorMsg = document.getElementById("errorMsg");
+        const successMsg = document.getElementById("successMsg");
+        const results = document.getElementById("results");
+
+        let selectedFile = null;
+
+        // Drag and drop
+        uploadArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            uploadArea.classList.add("dragover");
+        });
+
+        uploadArea.addEventListener("dragleave", () => {
+            uploadArea.classList.remove("dragover");
+        });
+
+        uploadArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove("dragover");
+            handleFileSelect(e.dataTransfer.files[0]);
+        });
+
+        uploadArea.addEventListener("click", () => {
+            audioFile.click();
+        });
+
+        audioFile.addEventListener("change", (e) => {
+            handleFileSelect(e.target.files[0]);
+        });
+
+        function handleFileSelect(file) {
+            if (!file) return;
+
+            if (!file.type.startsWith("audio/")) {
+                showError("Por favor selecciona un archivo de audio");
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = `✅ ${file.name}`;
+            analyzeBtn.disabled = false;
+            errorMsg.style.display = "none";
+            results.style.display = "none";
+        }
+
+        analyzeBtn.addEventListener("click", analyzeAudio);
+        clearBtn.addEventListener("click", () => {
+            selectedFile = null;
+            audioFile.value = "";
+            fileName.textContent = "";
+            analyzeBtn.disabled = true;
+            results.style.display = "none";
+            errorMsg.style.display = "none";
+            successMsg.style.display = "none";
+        });
+
+        async function analyzeAudio() {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append("audio", selectedFile);
+
+            try {
+                loading.style.display = "block";
+                errorMsg.style.display = "none";
+                results.style.display = "none";
+
+                const response = await fetch("/api/analyze-beat", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || "Error al analizar");
+                }
+
+                displayResults(data.analysis);
+                loading.style.display = "none";
+
+            } catch (error) {
+                loading.style.display = "none";
+                showError(error.message);
+            }
+        }
+
+        function displayResults(analysis) {
+            const tech = analysis.technical_data;
+            const ai = analysis.ai_inference;
+
+            document.getElementById("bpmValue").textContent = tech.bpm;
+            document.getElementById("keyValue").textContent = tech.key;
+            document.getElementById("durationValue").textContent = `${tech.duration}s`;
+            document.getElementById("spectralValue").textContent = `${tech.spectral_centroid} Hz`;
+            document.getElementById("moodValue").textContent = ai.mood;
+
+            const tagsList = document.getElementById("tagsList");
+            tagsList.innerHTML = ai.tags
+                .map(tag => `<span class="tag">${tag}</span>`)
+                .join("");
+
+            results.style.display = "block";
+            successMsg.style.display = "block";
+            successMsg.textContent = "✅ Análisis completado exitosamente!";
+        }
+
+        function showError(message) {
+            errorMsg.textContent = `❌ Error: ${message}`;
+            errorMsg.style.display = "block";
+        }
+    </script>
+</body>
+</html>

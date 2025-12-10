@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 WAVAULT IA - Panel de Pruebas</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .test-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        
+        .test-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .test-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .test-card p {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border 0.3s;
+        }
+        
+        input[type="file"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .results {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+        }
+        
+        .results.active {
+            display: block;
+        }
+        
+        .results h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .results pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎵 WAVAULT IA</h1>
+            <p>Panel de Pruebas - Análisis de Beats con Inteligencia Artificial</p>
+        </div>
+
+        <!-- Test Cards Grid -->
+        <div class="test-grid">
+            <!-- Test 1: Análisis Completo -->
+            <div class="test-card">
+                <h3>🎹 Análisis Completo</h3>
+                <p>Sube un beat y obtén análisis técnico completo + inferencia IA</p>
+                
+                <div class="input-group">
+                    <label>Selecciona archivo de audio:</label>
+                    <input type="file" id="audioFile1" accept=".mp3,.wav">
+                </div>
+                
+                <button class="btn" onclick="analyzeComplete()">Analizar Beat</button>
+                
+                <div class="loading" id="loading1">
+                    <div class="loading-spinner"></div>
+                    <p>Analizando... (puede tardar 30-60s)</p>
+                </div>
+                
+                <div class="status" id="status1"></div>
+                
+                <div class="results" id="results1">
+                    <h4>📊 Resultados:</h4>
+                    <pre id="output1"></pre>
+                </div>
+            </div>
+
+            <!-- Test 2: Solo Inferencia -->
+            <div class="test-card">
+                <h3>🤖 Solo Inferencia IA</h3>
+                <p>Análisis rápido enfocado solo en mood y tags</p>
+                
+                <div class="input-group">
+                    <label>Selecciona archivo de audio:</label>
+                    <input type="file" id="audioFile2" accept=".mp3,.wav">
+                </div>
+                
+                <button class="btn" onclick="analyzeInference()">Inferir Mood/Tags</button>
+                
+                <div class="loading" id="loading2">
+                    <div class="loading-spinner"></div>
+                    <p>Procesando...</p>
+                </div>
+                
+                <div class="status" id="status2"></div>
+                
+                <div class="results" id="results2">
+                    <h4>🏷️ Resultados:</h4>
+                    <pre id="output2"></pre>
+                </div>
+            </div>
+
+            <!-- Test 3: Enriquecimiento Simple -->
+            <div class="test-card">
+                <h3>🌐 Enriquecimiento con Gemini</h3>
+                <p>Extrae metadatos del nombre del archivo y enriquece con IA</p>
+                
+                <div class="input-group">
+                    <label>Nombre del archivo:</label>
+                    <input type="text" id="filename3" 
+                           placeholder="Bad Bunny - Titi Me Pregunto - 95BPM - Am.mp3"
+                           value="Bad Bunny - Titi Me Pregunto - 95BPM - Am.mp3">
+                </div>
+                
+                <button class="btn" onclick="enrichSimple()">Enriquecer Metadatos</button>
+                
+                <div class="loading" id="loading3">
+                    <div class="loading-spinner"></div>
+                    <p>Enriqueciendo...</p>
+                </div>
+                
+                <div class="status" id="status3"></div>
+                
+                <div class="results" id="results3">
+                    <h4>✨ Resultados:</h4>
+                    <pre id="output3"></pre>
+                </div>
+            </div>
+
+            <!-- Test 4: Enriquecimiento con Tunebat -->
+            <div class="test-card">
+                <h3>🔍 Enriquecimiento con Tunebat</h3>
+                <p>Web scraping + Gemini para máxima precisión</p>
+                
+                <div class="input-group">
+                    <label>Nombre del archivo:</label>
+                    <input type="text" id="filename4" 
+                           placeholder="Travis Scott - Goosebumps - 155BPM - Gm.mp3"
+                           value="Travis Scott - Goosebumps - 155BPM - Gm.mp3">
+                </div>
+                
+                <button class="btn" onclick="enrichTunebat()">Enriquecer con Tunebat</button>
+                
+                <div class="loading" id="loading4">
+                    <div class="loading-spinner"></div>
+                    <p>Scrapeando Tunebat...</p>
+                </div>
+                
+                <div class="status" id="status4"></div>
+                
+                <div class="results" id="results4">
+                    <h4>🎯 Resultados:</h4>
+                    <pre id="output4"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test 1: Análisis Completo
+        async function analyzeComplete() {
+            const fileInput = document.getElementById('audioFile1');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus(1, 'error', '⚠️ Por favor selecciona un archivo');
+                return;
+            }
+            
+            showLoading(1, true);
+            hideResults(1);
+            hideStatus(1);
+            
+            const formData = new FormData();
+            formData.append('audio', file);
+            
+            try {
+                const response = await fetch('/api/analyze-beat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResults(1, JSON.stringify(data.analysis, null, 2));
+                    showStatus(1, 'success', '✅ Análisis completado exitosamente');
+                } else {
+                    showStatus(1, 'error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showStatus(1, 'error', `❌ Error de conexión: ${error.message}`);
+            } finally {
+                showLoading(1, false);
+            }
+        }
+
+        // Test 2: Solo Inferencia
+        async function analyzeInference() {
+            const fileInput = document.getElementById('audioFile2');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus(2, 'error', '⚠️ Por favor selecciona un archivo');
+                return;
+            }
+            
+            showLoading(2, true);
+            hideResults(2);
+            hideStatus(2);
+            
+            const formData = new FormData();
+            formData.append('audio', file);
+            
+            try {
+                const response = await fetch('/api/analyze-beat/inference-only', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResults(2, JSON.stringify(data.analysis, null, 2));
+                    showStatus(2, 'success', '✅ Inferencia completada');
+                } else {
+                    showStatus(2, 'error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showStatus(2, 'error', `❌ Error: ${error.message}`);
+            } finally {
+                showLoading(2, false);
+            }
+        }
+
+        // Test 3: Enriquecimiento Simple
+        async function enrichSimple() {
+            const filename = document.getElementById('filename3').value;
+            
+            if (!filename) {
+                showStatus(3, 'error', '⚠️ Por favor ingresa un nombre de archivo');
+                return;
+            }
+            
+            showLoading(3, true);
+            hideResults(3);
+            hideStatus(3);
+            
+            try {
+                const response = await fetch('/api/enrich-beats-simple', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResults(3, JSON.stringify(data.data, null, 2));
+                    showStatus(3, 'success', '✅ Enriquecimiento completado');
+                } else {
+                    showStatus(3, 'error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showStatus(3, 'error', `❌ Error: ${error.message}`);
+            } finally {
+                showLoading(3, false);
+            }
+        }
+
+        // Test 4: Enriquecimiento con Tunebat
+        async function enrichTunebat() {
+            const filename = document.getElementById('filename4').value;
+            
+            if (!filename) {
+                showStatus(4, 'error', '⚠️ Por favor ingresa un nombre de archivo');
+                return;
+            }
+            
+            showLoading(4, true);
+            hideResults(4);
+            hideStatus(4);
+            
+            try {
+                const response = await fetch('/api/enrich-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResults(4, JSON.stringify(data.enrichment, null, 2));
+                    showStatus(4, 'success', '✅ Enriquecimiento con Tunebat completado');
+                } else {
+                    showStatus(4, 'error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showStatus(4, 'error', `❌ Error: ${error.message}`);
+            } finally {
+                showLoading(4, false);
+            }
+        }
+
+        // Helper Functions
+        function showLoading(num, show) {
+            const loading = document.getElementById(`loading${num}`);
+            loading.className = show ? 'loading active' : 'loading';
+        }
+
+        function showResults(num, text) {
+            const results = document.getElementById(`results${num}`);
+            const output = document.getElementById(`output${num}`);
+            results.className = 'results active';
+            output.textContent = text;
+        }
+
+        function hideResults(num) {
+            const results = document.getElementById(`results${num}`);
+            results.className = 'results';
+        }
+
+        function showStatus(num, type, message) {
+            const status = document.getElementById(`status${num}`);
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+
+        function hideStatus(num) {
+            const status = document.getElementById(`status${num}`);
+            status.className = 'status';
+        }
+    </script>
+</body>
+</html>

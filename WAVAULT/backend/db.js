@@ -18,15 +18,35 @@ db.serialize(() => {
     )
   `);
 
-  // Tabla de beats
+  // Tabla de beats (ACTUALIZADO: incluye todos los campos necesarios)
   db.run(`
     CREATE TABLE IF NOT EXISTS beats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      titulo TEXT NOT NULL,
-      precio REAL NOT NULL,
-      archivo_url TEXT NOT NULL,
-      productor_id INTEGER NOT NULL,
-      FOREIGN KEY (productor_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      title TEXT NOT NULL,
+      artist TEXT,
+      price REAL NOT NULL,
+      tags TEXT,
+      bpm INTEGER,
+      key TEXT,
+      type TEXT,
+      mood TEXT,
+      cover TEXT,
+      audio TEXT NOT NULL,
+      demo TEXT,
+      producer TEXT NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Tabla de ventas
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ventas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      beat_id INTEGER NOT NULL,
+      comprador_email TEXT NOT NULL,
+      fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (beat_id) REFERENCES beats(id) ON DELETE CASCADE
     )
   `);
 });

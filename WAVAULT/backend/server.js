@@ -44,6 +44,10 @@ app.get("/WAVAULT/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "client.html"));
 });
 
+app.get("/upload-beat", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "upload-beat-final.html"));
+});
+
 // ===================
 // ✅ REGISTRO DE USUARIO
 // ===================
@@ -91,34 +95,50 @@ app.post("/login", (req, res) => {
 // ==========================
 // ✅ SUBIDA DE BEATS (POST)
 // ==========================
-app.post("/subir-beat", upload.fields([
-  { name: "cover", maxCount: 1 },
-  { name: "audio", maxCount: 1 }
-]), (req, res) => {
-  const { title, price, producer, tags, bpm, key } = req.body;
-  const coverFile = req.files?.cover?.[0];
-  const audioFile = req.files?.audio?.[0];
+app.post("/upload-beat", upload.single("audio"), (req, res) => {
+  const { beat_name, beat_type, reference, key, bpm, mood, tags, price, description, producer } = req.body;
+  const audioFile = req.file;
 
-  if (!title || !price || !producer || !tags || !bpm || !key || !coverFile || !audioFile) {
-    return res.status(400).json({ error: "Faltan campos o archivos requeridos." });
+  // ✅ Validar campos requeridos
+  if (!beat_name || !beat_type || !key || !bpm || !price || !producer || !audioFile) {
+    return res.status(400).json({ 
+      success: false,
+      error: "Faltan campos o archivos requeridos." 
+    });
   }
 
-  const coverPath = `uploads/covers/${coverFile.filename}`;
+  // ✅ Validar tags (mínimo 3, máximo 30)
+  const tagsArray = typeof tags === 'string' 
+    ? tags.split(',').map(t => t.trim()).filter(t => t) 
+    : Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(t => t) : [];
+  
+  if (tagsArray.length < 3) {
+    return res.status(400).json({ success: false, error: "Mínimo 3 tags requeridos." });
+  }
+  
+  if (tagsArray.length > 30) {
+    return res.status(400).json({ success: false, error: "Máximo 30 tags permitidos." });
+  }
+
+  const tagsStr = tagsArray.join(',');
   const audioPath = `uploads/audio/${audioFile.filename}`;
   const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
 
-  console.log("✅ Archivos guardados:");
-  console.log("   🎨 Cover:", coverPath);
-  console.log("   🎵 Audio:", audioPath);
+  console.log("✅ Beat guardado:");
+  console.log("   📝 Nombre:", beat_name);
+  console.log("   🎵 Tipo:", beat_type);
+  console.log("   🎸 Key:", key);
+  console.log("   🎵 BPM:", bpm);
+  console.log("   🏷️ Tags:", tagsStr);
 
   db.run(
-    `INSERT INTO beats (title, price, tags, bpm, key, cover, audio, producer)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, price, tags, bpm, key, coverPath, audioPath, producer],
+    `INSERT INTO beats (beat_name, beat_type, reference, key, bpm, mood, tags, audio, price, description, producer)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [beat_name, beat_type, reference || null, key, bpm, mood || null, tagsStr, audioPath, price, description || null, producer],
     function (err) {
       if (err) {
         console.error("❌ Error al guardar beat:", err.message);
-        return res.status(500).json({ error: "Error al guardar el beat." });
+        return res.status(500).json({ success: false, error: "Error al guardar el beat." });
       }
 
       const beatId = this.lastID;
@@ -144,7 +164,7 @@ app.post("/subir-beat", upload.fields([
         });
       }
 
-      res.status(201).json({ id: beatId });
+      res.status(201).json({ success: true, id: beatId });
     }
   );
 });
@@ -250,6 +270,395 @@ app.delete("/borrar-beat/:id", (req, res) => {
       res.json({ success: true, mensaje: "🗑️ Beat eliminado correctamente." });
     });
   });
+});
+
+// ===================
+// ✅ ANÁLISIS DE BEATS CON IA
+// ===================
+const AudioAIAnalyzer = require("./ai-analysis-integration");
+const analyzer = new AudioAIAnalyzer();
+
+/**
+ * POST /api/analyze-beat
+ * Analiza un beat subido y retorna características técnicas + IA
+ */
+app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó archivo de audio"
+      });
+    }
+
+    console.log(`📊 Analizando beat: ${req.file.originalname}`);
+    
+    // Analizar con IA, pasando el nombre original del archivo
+    const result = await analyzer.analyze(req.file.path, req.file.originalname);
+
+    if (result.status !== "success") {
+      return res.status(500).json({
+        success: false,
+        message: result.message || "Error en análisis"
+      });
+    }
+
+    console.log(`✅ Beat analizado exitosamente`);
+    
+    return res.json({
+      success: true,
+      analysis: result
+    });
+
+  } catch (error) {
+    console.error("❌ Error analizando beat:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/parse-filename
+ * Extrae metadatos del nombre del archivo usando la estructura exacta
+ * Body: { filename: "Tropical Vibes - Drake Type Beat - Drake - Fm - 90.mp3" }
+ */
+app.post("/api/parse-filename", async (req, res) => {
+  try {
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        message: "Se requiere 'filename'"
+      });
+    }
+    
+    console.log(`📋 Parseando nombre: ${filename}`);
+    
+    // Llamar al script Python
+    const result = await new Promise((resolve, reject) => {
+      const { spawn } = require("child_process");
+      const pythonProcess = spawn("python3", [
+        path.join(__dirname, "parse_filename_ai.py"),
+        filename
+      ], {
+        env: {
+          ...process.env,
+          GEMINI_API_KEY: process.env.GEMINI_API_KEY || ""
+        }
+      });
+      
+      let output = "";
+      let errorOutput = "";
+      
+      pythonProcess.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output);
+            resolve(result);
+          } catch (e) {
+            console.error("Parse error:", e, "Output:", output.substring(0, 500));
+            reject(new Error(`JSON parse error: ${output.substring(0, 200)}`));
+          }
+        } else {
+          reject(new Error(`Process failed: ${errorOutput.substring(0, 200)}`));
+        }
+      });
+      
+      pythonProcess.on("error", (err) => {
+        reject(err);
+      });
+    });
+    
+    console.log(`✅ Nombre parseado:`, result);
+    
+    return res.json(result);
+    
+  } catch (error) {
+    console.error("❌ Error parseando nombre:", error.message);
+    
+    // Retornar estructura básica si falla
+    return res.json({
+      beat_name: null,
+      beat_type: null,
+      reference: null,
+      key: null,
+      bpm: null,
+      beat_name_confidence: 0,
+      beat_type_confidence: 0,
+      reference_confidence: 0,
+      key_confidence: 0,
+      bpm_confidence: 0
+    });
+  }
+});
+
+/**
+ * POST /api/analyze-beat/inference-only
+ * Solo retorna inferencia IA (sin datos técnicos)
+ */
+app.post("/api/analyze-beat/inference-only", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó archivo"
+      });
+    }
+
+    const result = await analyzer.analyzeInferenceOnly(req.file.path);
+
+    return res.json({
+      success: true,
+      analysis: result
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/enrich-metadata
+ * Enriquece metadatos de un beat usando Tunebat + Gemini
+ * Body: { filename: "Artist - Title - 120BPM - Cm.mp3" }
+ */
+app.post("/api/enrich-metadata", async (req, res) => {
+  try {
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        message: "Se requiere 'filename' en el body"
+      });
+    }
+    
+    console.log(`📊 Enriqueciendo metadatos: ${filename}`);
+    
+    // Llamar al script Python
+    const result = await new Promise((resolve, reject) => {
+      const { spawn } = require("child_process");
+      const pythonProcess = spawn("python3", [
+        path.join(__dirname, "metadata_enrichment.py"),
+        filename
+      ], {
+        env: {
+          ...process.env,
+          GEMINI_API_KEY: process.env.GEMINI_API_KEY || ""
+        }
+      });
+      
+      let output = "";
+      let errorOutput = "";
+      
+      pythonProcess.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output);
+            resolve(result);
+          } catch (e) {
+            reject(new Error(`JSON parse error: ${output}`));
+          }
+        } else {
+          reject(new Error(`Process failed: ${errorOutput}`));
+        }
+      });
+      
+      pythonProcess.on("error", (err) => {
+        reject(err);
+      });
+    });
+    
+    return res.json({
+      success: true,
+      enrichment: result
+    });
+    
+  } catch (error) {
+    console.error("❌ Error enriqueciendo metadatos:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/enrich-beats-simple
+ * Enriquece metadatos usando SOLO Gemini Web Search (sin Tunebat)
+ * Body: { filename: "Artist - Title - 120BPM - Cm.mp3" }
+ */
+app.post("/api/enrich-beats-simple", async (req, res) => {
+  try {
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        message: "Se requiere 'filename'"
+      });
+    }
+    
+    console.log(`📊 Enriqueciendo (Gemini): ${filename}`);
+    
+    // Usar metadata_enrichment.py que NO requiere archivo físico
+    const result = await new Promise((resolve, reject) => {
+      const { spawn } = require("child_process");
+      const pythonProcess = spawn("python3", [
+        path.join(__dirname, "metadata_enrichment.py"),
+        filename
+      ], {
+        env: {
+          ...process.env,
+          GEMINI_API_KEY: process.env.GEMINI_API_KEY || ""
+        }
+      });
+      
+      let output = "";
+      let errorOutput = "";
+      
+      pythonProcess.stdout.on("data", (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const data = JSON.parse(output);
+            resolve(data);
+          } catch (e) {
+            reject(new Error(`JSON parse error: ${output.substring(0, 200)}`));
+          }
+        } else {
+          reject(new Error(`Python error: ${errorOutput.substring(0, 200)}`));
+        }
+      });
+    });
+    
+    console.log(`✅ Enriquecimiento completado`);
+    
+    return res.json({
+      success: true,
+      data: result
+    });
+    
+  } catch (error) {
+    console.error("❌ Error en enriquecimiento simple:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /upload-beat
+ * Guarda un beat en la BD después de confirmación del usuario
+ * El beat SOLO se guarda si el usuario confirma en el modal
+ */
+app.post("/upload-beat", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó archivo de audio"
+      });
+    }
+
+    const { artist, title, bpm, key, type, mood, price, description, producer } = req.body;
+
+    // Validar campos requeridos
+    if (!artist || !title || !bpm || !key || !price || !producer) {
+      return res.status(400).json({
+        success: false,
+        message: "Faltan campos requeridos (artist, title, bpm, key, price, producer)"
+      });
+    }
+
+    const audioPath = `uploads/audio/${req.file.filename}`;
+    const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
+
+    console.log(`✅ Guardando beat: ${title} por ${artist}`);
+    console.log(`   🎵 Audio: ${audioPath}`);
+    console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${type}`);
+
+    // Insertar en BD
+    db.run(
+      `INSERT INTO beats (title, artist, bpm, key, type, mood, price, tags, cover, audio, producer, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, artist, bpm, key, type, mood, price, "beat", null, audioPath, producer, description || null],
+      function (err) {
+        if (err) {
+          console.error("❌ Error al guardar beat:", err.message);
+          return res.status(500).json({
+            success: false,
+            message: "Error al guardar el beat en la BD"
+          });
+        }
+
+        const beatId = this.lastID;
+        console.log(`✅ Beat guardado con ID: ${beatId}`);
+
+        // Generar demo con marca de agua (opcional)
+        const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");
+        const scriptPath = path.join(__dirname, "generar_demo.py");
+
+        if (fs.existsSync(scriptPath)) {
+          const py = spawn("python3", [scriptPath, fullAudioPath, demoPath]);
+
+          py.stdout.on("data", data => console.log("🐍 Demo:", data.toString()));
+          py.stderr.on("data", data => console.error("❌ Demo error:", data.toString()));
+
+          py.on("close", (code) => {
+            if (code === 0) {
+              const relativeDemoPath = audioPath.replace(/\.mp3$/i, "_demo.mp3");
+              db.run(`UPDATE beats SET demo = ? WHERE id = ?`, [relativeDemoPath, beatId]);
+              console.log(`✅ Demo generada: ${demoPath}`);
+            }
+          });
+        }
+
+        return res.json({
+          success: true,
+          message: "✅ Beat guardado exitosamente",
+          beatId: beatId
+        });
+      }
+    );
+
+  } catch (error) {
+    console.error("❌ Error en /upload-beat:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
 });
 
 // ===================
