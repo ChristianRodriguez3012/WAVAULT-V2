@@ -343,9 +343,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (xhr.status >= 200 && xhr.status < 300) {
-        formDirty = false; // Clear dirty state after successful upload
         mostrarModal("✅ Beat subido exitosamente.");
         document.getElementById('formSubirBeat').reset();
+        formDirty = false; // Clear dirty state after form reset
         document.getElementById("labelAudio").textContent = "🎧 Archivo de Audio";
         document.getElementById("labelPortada").textContent = "🖼️ Portada del Beat";
         await cargarBeats();
