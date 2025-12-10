@@ -26,8 +26,10 @@ class AudioAnalyzer {
     try {
       console.log(`📊 Analizando beat: ${fileName}`);
 
-      // Check if file exists
-      if (!fs.existsSync(filePath)) {
+      // Check if file exists (async)
+      try {
+        await fs.promises.access(filePath);
+      } catch {
         throw new Error(`File not found: ${filePath}`);
       }
 
@@ -51,9 +53,21 @@ class AudioAnalyzer {
         };
       }
 
-      // Read the audio file
-      const audioBuffer = fs.readFileSync(filePath);
+      // Read the audio file (async)
+      const audioBuffer = await fs.promises.readFile(filePath);
       const base64Audio = audioBuffer.toString('base64');
+
+      // Detect MIME type from file extension
+      const fileExt = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.m4a': 'audio/mp4',
+        '.aac': 'audio/aac',
+        '.ogg': 'audio/ogg',
+        '.flac': 'audio/flac'
+      };
+      const mimeType = mimeTypes[fileExt] || 'audio/mpeg';
 
       // Get the Gemini model
       const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -81,7 +95,7 @@ Be as accurate as possible with the BPM and key detection. If you're uncertain a
       const filePart = {
         inlineData: {
           data: base64Audio,
-          mimeType: "audio/mpeg"
+          mimeType: mimeType
         }
       };
 

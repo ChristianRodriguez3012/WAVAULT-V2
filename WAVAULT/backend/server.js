@@ -216,9 +216,11 @@ app.post("/analizar-audio", upload.single("audio"), async (req, res) => {
     // Analyze the audio file
     const result = await analyzer.analyze(audioPath, fileName);
 
-    // Clean up the uploaded file
-    if (fs.existsSync(audioPath)) {
-      fs.unlinkSync(audioPath);
+    // Clean up the uploaded file (async)
+    try {
+      await fs.promises.unlink(audioPath);
+    } catch (cleanupError) {
+      console.warn("⚠️  Error cleaning up file:", cleanupError.message);
     }
 
     res.json(result);
