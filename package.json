@@ -1,16 +1,19 @@
 {
   "name": "wavault-v2",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Sistema de Análisis y Venta de Beats con IA",
+  "main": "WAVAULT/backend/server.js",
   "scripts": {
+    "start": "node WAVAULT/backend/server.js",
+    "dev": "node WAVAULT/backend/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["beats", "music", "ai", "analysis"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^2.2.0",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "fluent-ffmpeg": "^2.1.3",
     "multer": "^2.0.1",
