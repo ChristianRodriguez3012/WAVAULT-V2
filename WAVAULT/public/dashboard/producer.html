@@ -1,200 +1,1204 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-      <title>Productor - WAVAULT</title>
-        <link rel="stylesheet" href="../assets/css/style.css"/>
-                        <style>
-                              .wizard-step { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
-                              .wizard-step h3 { margin-top: 0; margin-bottom: 12px; font-size: 16px; }
-                              #wizardSubidaBeat input[type="file"],
-                              #wizardSubidaBeat input[type="text"],
-                              #wizardSubidaBeat input[type="number"],
-                              #wizardSubidaBeat select,
-                              #wizardSubidaBeat textarea { width: 100%; margin: 6px 0 12px; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-                              #wizardSubidaBeat button { padding: 8px 12px; border: none; border-radius: 6px; background: #1a73e8; color: #fff; cursor: pointer; margin-right: 8px; }
-                              #wizardSubidaBeat button:disabled { background: #cbd5e1; cursor: not-allowed; }
-                              .file-name { font-size: 12px; color: #16a34a; margin-bottom: 8px; }
-                              .two-columns { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
-                              .tags-container { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
-                              .tags-input input { width: 100%; }
-                              .tags-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-                              .tag-item { background: #1f2937; color: #fff; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
-                              .tag-item button { background: transparent; color: #fff; border: none; cursor: pointer; font-size: 12px; }
-                              #confirmData p { margin: 4px 0; }
-                              #uploadProgress { margin-top: 8px; }
-                              .ia-table table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                              .ia-table th, .ia-table td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
-                              .ia-table th { background: #f8fafc; }
-                              .badge-good { color: #16a34a; font-weight: 700; }
-                              .badge-mid { color: #f59e0b; font-weight: 700; }
-                              .badge-low { color: #dc2626; font-weight: 700; }
-                              .ia-info { font-size: 13px; color: #334155; margin: 8px 0; }
-                        </style>
-          <script>
-              const usuarioActivo = JSON.parse(localStorage.getItem('usuarioActivo'));
-                  if (!usuarioActivo || usuarioActivo.rol !== 'productor') {
-                        alert('Acceso denegado. Inicia sesión como productor.');
-                              window.location.href = '../login.html';
-                                  }
-                                    </script>
-                                    </head>
-                                    <body>
-                                      <header>
-                                          <h1>🎧 WAVAULT - Productor</h1>
-                                              <nav>
-                                                    <a href="#" data-seccion="feed">Feed</a>
-                                                          <a href="#" data-seccion="misBeats">Mis Beats</a>
-                                                                <a href="#" data-seccion="subir">Subir Beat</a>
-                                                                      <a href="#" data-seccion="perfil">Mi Perfil</a>
-                                                                            <a href="#" onclick="cerrarSesion()">Cerrar Sesión</a>
-                                                                                </nav>
-                                                                                  </header>
-                                                                                  
-                                                                                    <main>
-                                                                                        <!-- FEED -->
-                                                                                            <section id="feedSection" class="productor-section">
-                                                                                                  <div class="search-bar">
-                                                                                                          <input type="text" id="buscarBeatsProductor" placeholder="Buscar beats..." />
-                                                                                                                </div>
-                                                                                                                      <div id="beatsProductor" class="beat-feed"></div>
-                                                                                                                          </section>
-                                                                                                                          
-                                                                                                                              <!-- MIS BEATS -->
-                                                                                                                                  <section id="misBeatsSection" class="productor-section" style="display:none;">
-                                                                                                                                        <h2>🎵 Mis Beats</h2>
-                                                                                                                                              <div id="misBeatsList" class="beat-feed"></div>
-                                                                                                                                                  </section>
-                                                                                                                                                  
-                                                                                                                                                      <!-- SUBIR BEAT -->
-                                                                                                                                                          <section id="subirSection" class="productor-section" style="display:none;">
-                                                                                                                                                                <h2>📤 Subir Nuevo Beat</h2>
-                                                                                                                                                                      <div id="wizardSubidaBeat">
-                                    <!-- Paso 1: Audio -->
-                                    <div class="wizard-step" id="step-audio">
-                                          <h3>1️⃣ Cargar Audio</h3>
-                                          <input type="file" id="audioFileWizard" accept="audio/mp3,audio/wav,audio/flac" />
-                                          <div id="audioFileName" class="file-name"></div>
-                                          <button id="btnNextAudio" disabled>Siguiente</button>
-                                    </div>
-                                    <!-- Paso 2: Portada -->
-                                    <div class="wizard-step" id="step-portada" style="display:none;">
-                                          <h3>2️⃣ Cargar Portada</h3>
-                                          <input type="file" id="coverFileWizard" accept="image/*" />
-                                          <div id="coverFileName" class="file-name"></div>
-                                          <button id="btnBackPortada">Atrás</button>
-                                          <button id="btnNextPortada" disabled>Siguiente</button>
-                                    </div>
-                                    <!-- Paso 3: Análisis IA -->
-                                    <div class="wizard-step" id="step-ia" style="display:none;">
-                                          <h3>3️⃣ Análisis IA</h3>
-                                          <div id="iaAnalysisStatus">Procesando análisis...</div>
-                                          <div id="iaAnalysisInfo" class="ia-info" style="display:none;"></div>
-                                          <div id="iaConfidenceTable" class="ia-table" style="display:none;"></div>
-                                          <div id="iaAnalysisResults" style="display:none;"></div>
-                                          <button id="btnBackIA">Atrás</button>
-                                          <button id="btnNextIA" disabled>Siguiente</button>
-                                    </div>
-                                    <!-- Paso 4: Confirmar y Guardar -->
-                                    <div class="wizard-step" id="step-confirmar" style="display:none;">
-                                          <h3>4️⃣ Confirmar y Guardar</h3>
-                                          <div id="confirmData"></div>
-                                          <label>🎵 Título del Beat</label>
-                                          <input type="text" id="titleWizard" placeholder="Nombre del beat" required>
-                                          <div class="two-columns">
-                                                <div>
-                                                      <label>🔢 BPM</label>
-                                                      <input type="number" id="bpmWizard" placeholder="90" min="50" max="220" required>
-                                                </div>
-                                                <div>
-                                                      <label>🎼 Key</label>
-                                                      <select id="keyWizard" required>
-                                                            <option value="">Selecciona la clave (Key)</option>
-                                                            <option value="C Maj">C Maj</option><option value="C Min">C Min</option>
-                                                            <option value="C# Maj">C# Maj</option><option value="C# Min">C# Min</option>
-                                                            <option value="D Maj">D Maj</option><option value="D Min">D Min</option>
-                                                            <option value="D# Maj">D# Maj</option><option value="D# Min">D# Min</option>
-                                                            <option value="E Maj">E Maj</option><option value="E Min">E Min</option>
-                                                            <option value="F Maj">F Maj</option><option value="F Min">F Min</option>
-                                                            <option value="F# Maj">F# Maj</option><option value="F# Min">F# Min</option>
-                                                            <option value="G Maj">G Maj</option><option value="G Min">G Min</option>
-                                                            <option value="G# Maj">G# Maj</option><option value="G# Min">G# Min</option>
-                                                            <option value="A Maj">A Maj</option><option value="A Min">A Min</option>
-                                                            <option value="A# Maj">A# Maj</option><option value="A# Min">A# Min</option>
-                                                            <option value="B Maj">B Maj</option><option value="B Min">B Min</option>
-                                                      </select>
-                                                </div>
-                                          </div>
-                                          <div id="tagsWizardContainer" class="tags-container">
-                                                <label>🏷️ Tags (<span id="tagCountWizard">0</span>/30) - Mínimo 3 tags</label>
-                                                <div class="tags-input">
-                                                      <input type="text" id="tagInputWizard" placeholder="Ingresa tags y presiona Enter" maxlength="50" />
-                                                </div>
-                                                <div id="tagsListWizard" class="tags-list"></div>
-                                                <small id="tagErrorWizard" style="color: red; display: none;"></small>
-                                          </div>
-                                          <label>💰 Precio (en créditos)</label>
-                                          <input type="number" id="priceWizard" placeholder="0" min="1" required>
-                                          <label>📝 Descripción (opcional)</label>
-                                          <textarea id="descriptionWizard" placeholder="Describe tu beat..." rows="3"></textarea>
-                                          <progress id="uploadProgress" value="0" max="100" style="display:none;width:100%;"></progress>
-                                          <div id="uploadStatus" class="small"></div>
-                                          <button id="btnBackConfirmar">Atrás</button>
-                                          <button id="btnGuardarBeat">Guardar Beat</button>
-                                    </div>
-                                                            </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      </section>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <!-- PERFIL -->
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <section id="perfilSection" class="productor-section" style="display:none;">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <h2>👤 Mi Perfil</h2>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <p><strong>Email:</strong> <span id="productorEmail">-</span></p>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <h3>📈 Historial de Ventas</h3>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <p>Total de ventas registradas: <strong><span id="ventasTotales">0</span></strong></p>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <table id="tablaVentasBeats" class="ventas-table">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <thead>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <tr>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <th>Portada</th>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <th>Título del Beat</th>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <th>Ventas</th>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <th>Compradores</th>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </tr>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                </thead>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <tbody></tbody>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </table>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  </section>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    </main>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <!-- 🎧 Reproductor Global actualizado con tiempo -->
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <div id="reproductorGlobal" class="player-bar" style="display: none;">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <div class="player-info">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <img id="playerCover" src="" alt="Cover">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <h4 id="playerTitle">Título del Beat</h4>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <p id="playerProducer">Productor</p>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <div class="player-controls">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <button id="btnPrev" title="Anterior">◀◀</button>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <button id="playPauseBtn" title="Reproducir / Pausar">⏵</button>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <button id="btnNext" title="Siguiente">▶▶</button>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <input type="range" id="progressBar" value="0" step="1">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span id="currentTime">0:00</span> / <span id="totalDuration">0:00</span>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <input type="range" id="volumeControl" min="0" max="1" step="0.01" value="1">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <audio id="audioPlayer"></audio>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      <!-- MODAL -->
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <div id="modalConfirmacion" class="modal" style="display:none;">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <div class="modal-contenido">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <p id="mensajeModal"></p>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <button onclick="cerrarModal()">Cerrar</button>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <!-- ✅ SCRIPT PRINCIPAL -->
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <script src="../assets/js/producer.js"></script>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </html>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel del Productor - WAVAULT</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    /* Oculta cualquier residuo fuera del layout principal */
+    body.clean-layout > :not(.navbar):not(.producer-header):not(.producer-container):not(.footer) {
+      display: none !important;
+    }
+
+    .producer-header {
+      background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+      color: white;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      margin-bottom: 2rem;
+      border-radius: 0 0 24px 24px;
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.25);
+    }
+
+    .producer-header h1 {
+      font-size: 2.4rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .producer-header p {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 1rem;
+    }
+
+    .producer-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .tab-btn {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      color: #1e293b;
+      transition: all 0.2s ease;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+      font-size: 0.95rem;
+    }
+
+    .tab-btn i {
+      color: #6366f1;
+      font-size: 1.1rem;
+    }
+
+    .tab-btn:hover {
+      transform: translateY(-2px);
+      border-color: #6366f1;
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.15);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(236, 72, 153, 0.08));
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #6366f1;
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .upload-box {
+      background: white;
+      padding: 1.8rem;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e2e8f0;
+    }
+
+    .upload-area {
+      border: 2px dashed #d9e0ec;
+      border-radius: 14px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #f8fafc;
+      position: relative;
+    }
+
+    .upload-area input[type="file"] {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-area.dragover {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.06);
+    }
+
+    .upload-icon {
+      width: 70px;
+      height: 70px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(236, 72, 153, 0.12));
+      display: grid;
+      place-items: center;
+      margin: 0 auto 1rem;
+      color: #6366f1;
+      font-size: 1.6rem;
+    }
+
+    .upload-text {
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 0.35rem;
+      font-size: 1.05rem;
+    }
+
+    .upload-hint {
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #1e293b;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .form-group label i {
+      color: #6366f1;
+      margin-right: 0.4rem;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+      background: white;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+
+    .stat-number {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #6366f1;
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-label {
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: #64748b;
+      background: white;
+      border: 1px dashed #e2e8f0;
+      border-radius: 14px;
+    }
+
+    .empty-state-icon {
+      font-size: 3.8rem;
+      margin-bottom: 1rem;
+      opacity: 0.55;
+      color: #6366f1;
+    }
+
+    .empty-state-text {
+      font-size: 1.05rem;
+      margin-bottom: 0.35rem;
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .tabs {
+        grid-template-columns: 1fr;
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      .producer-header h1 {
+        font-size: 1.9rem;
+      }
+      .tab-btn {
+        padding: 1rem;
+        font-size: 0.95rem;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .confidence-bar {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .confidence-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+
+    .confidence-high { background: linear-gradient(90deg, #10b981, #059669); }
+    .confidence-medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .confidence-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+  </style>
+  <script>
+    const usuarioActivo = JSON.parse(localStorage.getItem('usuarioActivo'));
+    if (!usuarioActivo || usuarioActivo.rol !== 'productor') {
+      window.location.href = '../login.html';
+    }
+  </script>
+</head>
+<body class="clean-layout">
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <i class="fas fa-compact-disc"></i>
+        <span>WAVAULT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="../index.html" class="nav-link">Feed</a>
+        <a href="../index.html" class="nav-link">Explorar</a>
+        <a href="#" onclick="logout()" class="nav-link btn-register">Cerrar Sesión</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="producer-header">
+    <h1><i class="fas fa-music"></i> Panel del Productor</h1>
+    <p>Gestiona y vende tus beats en WAVAULT</p>
+  </div>
+
+  <div class="producer-container">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(event, 'uploads')"><i class="fas fa-cloud-upload-alt"></i> Subir Beat</button>
+      <button class="tab-btn" onclick="switchTab(event, 'beats')"><i class="fas fa-compact-disc"></i> Mis Beats</button>
+      <button class="tab-btn" onclick="switchTab(event, 'stats')"><i class="fas fa-chart-bar"></i> Estadísticas</button>
+    </div>
+
+    <div id="uploads" class="tab-content active">
+      <div class="upload-box">
+        <form id="uploadForm">
+          <div class="upload-area" id="uploadArea">
+            <input type="file" id="audioFile" accept=".mp3,.wav,.flac" style="display: none;">
+            <div class="upload-icon"><i class="fas fa-music"></i></div>
+            <p class="upload-text">Arrastra tu beat aquí o haz clic</p>
+            <p class="upload-hint">Formatos soportados: MP3, WAV, FLAC</p>
+          </div>
+
+          <!-- Barra de Progreso de Carga -->
+          <div id="uploadProgressSection" style="display: none; margin-top: 1.5rem;">
+            <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+              <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+                <div style="width: 10px; height: 10px; background: #6366f1; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+                <p style="color: #1e293b; font-weight: 600; margin: 0;" id="uploadStatus">Preparando carga...</p>
+              </div>
+
+              <!-- Barra de Progreso del Archivo -->
+              <div style="margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                  <span style="font-size: 0.85rem; color: #64748b;">📥 Cargando archivo</span>
+                  <span style="font-size: 0.85rem; color: #6366f1; font-weight: 600;" id="uploadPercent">0%</span>
+                </div>
+                <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                  <div id="uploadProgressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #ec4899); border-radius: 4px; transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Estados del Proceso -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;">
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #10b981;">
+                  <div style="font-size: 1.2rem; margin-bottom: 0.25rem;">✓</div>
+                  <div style="font-size: 0.75rem; color: #10b981; font-weight: 600;">Archivo</div>
+                </div>
+
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #d1d5db;">
+                  <div id="step2Icon" style="font-size: 1.2rem; margin-bottom: 0.25rem;">⏳</div>
+                  <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;" id="step2Text">Análisis</div>
+                </div>
+
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #d1d5db;">
+                  <div id="step3Icon" style="font-size: 1.2rem; margin-bottom: 0.25rem;">⏳</div>
+                  <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;" id="step3Text">Metadatos</div>
+                </div>
+
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #d1d5db;">
+                  <div id="step4Icon" style="font-size: 1.2rem; margin-bottom: 0.25rem;">⏳</div>
+                  <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;" id="step4Text">Completar</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loader IA -->
+          <div id="aiLoader" style="display: none; text-align: center; padding: 2rem; background: #f8fafc; border-radius: 12px; margin-top: 1.5rem;">
+            <div style="width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; margin: 0 auto 1rem; animation: spin 1s linear infinite;"></div>
+            <p style="color: #6366f1; font-weight: 600; margin-bottom: 0.5rem;">🤖 Analizando beat con IA...</p>
+            <p style="color: #64748b; font-size: 0.9rem;">Detectando BPM, tonalidad, mood y más</p>
+          </div>
+
+          <!-- Resultados del Análisis IA -->
+          <div id="aiResults" style="display: none; background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(236, 72, 153, 0.05)); padding: 1.5rem; border-radius: 12px; margin-top: 1.5rem; border: 1px solid rgba(99, 102, 241, 0.2);">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+              <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #ec4899); border-radius: 10px; display: grid; place-items: center; color: white;">
+                <i class="fas fa-brain"></i>
+              </div>
+              <div>
+                <h3 style="color: #1e293b; font-size: 1.1rem; margin: 0;">✨ Análisis IA Completado</h3>
+                <p style="color: #64748b; font-size: 0.85rem; margin: 0;">Metadatos detectados automáticamente</p>
+              </div>
+            </div>
+
+            <div id="aiMetadataTable" style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);"></div>
+          </div>
+
+          <div id="fileInfo" style="display: none; background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; border-left: 4px solid #6366f1;">
+            <div style="margin-bottom: 1rem;">
+              <span style="color: #64748b; font-size: 0.9rem;">📁 Archivo seleccionado:</span>
+              <div style="font-weight: 600; color: #1e293b; margin-top: 0.3rem;" id="fileName"></div>
+            </div>
+
+            <!-- PORTADA/COVER - OBLIGATORIO -->
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 0.5rem;"><i class="fas fa-image"></i> Portada del Beat <span style="color: #ef4444; font-weight: 700;">*</span></label>
+              <div style="position: relative; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: white;" id="coverUploadArea">
+                <input type="file" id="coverImage" accept="image/jpeg,image/png,image/webp" style="display: none;" required>
+                <div id="coverPreview" style="display: none;">
+                  <img id="coverPreviewImg" style="max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover;">
+                </div>
+                <div id="coverPlaceholder">
+                  <div style="font-size: 2rem; margin-bottom: 0.5rem;">🖼️</div>
+                  <p style="color: #1e293b; font-weight: 600; margin: 0; margin-bottom: 0.25rem;">Sube la portada de tu beat</p>
+                  <p style="color: #64748b; font-size: 0.85rem; margin: 0;">JPG, PNG o WebP (Recomendado: 400x400px)</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-tag"></i> Nombre del Beat</label>
+              <input type="text" id="beatName" placeholder="Ej: Dark Trap Vibes" required />
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-music"></i> Tipo de Beat</label>
+              <input type="text" id="beatType" placeholder="Ej: Trap, Hip-Hop, Reggaeton" required />
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-user-circle"></i> Referencia/Artista</label>
+              <input type="text" id="reference" placeholder="Ej: Drake, Bad Bunny" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label><i class="fas fa-music"></i> Tonalidad (Key)</label>
+                <input type="text" id="keyField" placeholder="Ej: Fm, Am" required />
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-tachometer-alt"></i> BPM</label>
+                <input type="number" id="bpmField" min="50" max="220" placeholder="Ej: 90" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-heart"></i> Mood/Emoción</label>
+              <input type="text" id="moodField" placeholder="Ej: Dark & Atmospheric" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label><i class="fas fa-dollar-sign"></i> Precio (USD)</label>
+                <input type="number" id="price" min="1" placeholder="Ej: 25" required />
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-tag"></i> Tags (separados por comas)</label>
+                <input type="text" id="tags" placeholder="Trap, Hip-Hop, Dark" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-align-left"></i> Descripción</label>
+              <textarea id="description" placeholder="Describe tu beat..." rows="3"></textarea>
+            </div>
+
+            <button type="submit" class="btn-register" style="width: 100%; padding: 1rem; margin-top: 1rem;">
+              <i class="fas fa-upload"></i> Subir Beat
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="beats" class="tab-content">
+      <div id="beatsContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="fas fa-compact-disc"></i></div>
+          <p class="empty-state-text">No has subido beats aún</p>
+          <p style="color: #999; margin-top: 0.5rem;">Sube tu primer beat para comenzar a vender</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="stats" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-number" id="statBeats">0</div>
+          <div class="stat-label">Beats Subidos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="statVentas">0</div>
+          <div class="stat-label">Total Ventas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="statIngresos">$0</div>
+          <div class="stat-label">Ingresos Totales</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="statDescargas">0</div>
+          <div class="stat-label">Descargas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer" style="margin-top: 4rem;">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>WAVAULT</h4>
+        <p>La plataforma de beats número 1</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+    </div>
+  </footer>
+
+  <script>
+    let uploadedFile = null;
+    let aiAnalysisData = null;
+    let uploadedCover = null;
+
+    function switchTab(event, tabName) {
+      event.preventDefault();
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(tabName).classList.add('active');
+      event.target.closest('.tab-btn').classList.add('active');
+    }
+
+    const uploadArea = document.getElementById('uploadArea');
+    const audioFile = document.getElementById('audioFile');
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        audioFile.files = files;
+        handleFileSelect();
+      }
+    });
+
+    uploadArea.addEventListener('click', () => audioFile.click());
+    audioFile.addEventListener('change', handleFileSelect);
+
+    // Manejadores para cover image
+    const coverUploadArea = document.getElementById('coverUploadArea');
+    const coverImage = document.getElementById('coverImage');
+
+    if (coverUploadArea) {
+      coverUploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        coverUploadArea.classList.add('dragover');
+      });
+
+      coverUploadArea.addEventListener('dragleave', () => {
+        coverUploadArea.classList.remove('dragover');
+      });
+
+      coverUploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        coverUploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          coverImage.files = files;
+          handleCoverSelect();
+        }
+      });
+
+      coverUploadArea.addEventListener('click', () => coverImage.click());
+    }
+
+    if (coverImage) {
+      coverImage.addEventListener('change', handleCoverSelect);
+    }
+
+    function handleCoverSelect() {
+      if (coverImage.files.length > 0) {
+        uploadedCover = coverImage.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById('coverPlaceholder').style.display = 'none';
+          document.getElementById('coverPreview').style.display = 'block';
+          document.getElementById('coverPreview').src = e.target.result;
+        };
+        reader.readAsDataURL(uploadedCover);
+      }
+    }
+
+    async function handleFileSelect() {
+      if (audioFile.files.length > 0) {
+        uploadedFile = audioFile.files[0];
+        document.getElementById('fileName').textContent = uploadedFile.name;
+        
+        // Mostrar barra de progreso durante análisis
+        const progressSection = document.getElementById('uploadProgressSection');
+        if (progressSection) {
+          progressSection.style.display = 'block';
+          updateUploadStatus('🔍 Analizando audio con IA...', 10);
+          updateProcessStep(1, '✓', '#10b981', 'Archivo');
+          updateProcessStep(2, '⏳', '#6366f1', 'Análisis');
+        }
+        
+        // Mostrar loader IA
+        document.getElementById('aiLoader').style.display = 'block';
+        document.getElementById('aiResults').style.display = 'none';
+        document.getElementById('fileInfo').style.display = 'none';
+
+        // Llamar al análisis IA
+        await analyzeWithAI(uploadedFile);
+      }
+    }
+
+    async function analyzeWithAI(file) {
+      const formData = new FormData();
+      formData.append('audio', file);
+
+      try {
+        console.log('🔍 Iniciando análisis IA para:', file.name);
+        
+        const response = await fetch('/api/analyze-beat', {
+          method: 'POST',
+          body: formData
+        });
+
+        console.log('📡 Respuesta del servidor:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`Error del servidor: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('📊 Resultado del análisis:', result);
+        
+        // Ocultar loader
+        document.getElementById('aiLoader').style.display = 'none';
+
+        if (result.success && result.analysis) {
+          // Actualizar progreso
+          const progressSection = document.getElementById('uploadProgressSection');
+          if (progressSection) {
+            updateUploadStatus('✅ Análisis completado', 30);
+            updateProcessStep(2, '✓', '#10b981', 'Análisis');
+            updateProcessStep(3, '⏳', '#6366f1', 'Metadatos');
+          }
+          
+          aiAnalysisData = result.analysis;
+          
+          // Verificar si hay datos técnicos al menos
+          const tech = result.analysis.technical_data || result.analysis.technical_analysis || {};
+          const hasTechnicalData = tech.bpm || result.analysis.bpm || tech.key || result.analysis.key;
+          
+          console.log('🔍 Datos técnicos encontrados:', hasTechnicalData);
+          console.log('📊 technical_data:', result.analysis.technical_data);
+          console.log('🤖 ai_inference:', result.analysis.ai_inference);
+          
+          if (hasTechnicalData) {
+            displayAIResults(result.analysis);
+            prefillFormWithAI(result.analysis);
+            
+            // Completar paso de metadatos
+            if (progressSection) {
+              setTimeout(() => {
+                updateUploadStatus('📝 Formulario listo', 50);
+                updateProcessStep(3, '✓', '#10b981', 'Metadatos');
+              }, 500);
+            }
+          } else {
+            console.warn('⚠️ Sin datos técnicos en el análisis');
+          }
+          
+          // Mostrar formulario siempre
+          document.getElementById('fileInfo').style.display = 'block';
+        } else {
+          console.warn('⚠️ Análisis sin datos:', result);
+          // Mostrar formulario para entrada manual
+          document.getElementById('fileInfo').style.display = 'block';
+        }
+      } catch (error) {
+        console.error('❌ Error en análisis IA:', error);
+        document.getElementById('aiLoader').style.display = 'none';
+        
+        // Ocultar progreso
+        const progressSection = document.getElementById('uploadProgressSection');
+        if (progressSection) {
+          progressSection.style.display = 'none';
+        }
+        
+        // Mostrar mensaje pero permitir continuar
+        const errorMsg = document.createElement('div');
+        errorMsg.style.cssText = 'background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; border-radius: 8px; margin: 1rem 0;';
+        errorMsg.innerHTML = `
+          <p style="color: #92400e; font-weight: 600; margin: 0 0 0.5rem 0;">⚠️ Análisis IA no disponible</p>
+          <p style="color: #78350f; font-size: 0.9rem; margin: 0;">Por favor completa los metadatos manualmente. Para habilitar análisis automático, configura GEMINI_API_KEY en el servidor.</p>
+        `;
+        document.getElementById('uploads').insertBefore(errorMsg, document.getElementById('fileInfo'));
+        
+        // Mostrar formulario para entrada manual
+        document.getElementById('fileInfo').style.display = 'block';
+      }
+    }
+
+    function displayAIResults(analysis) {
+      const resultsDiv = document.getElementById('aiResults');
+      const tableDiv = document.getElementById('aiMetadataTable');
+
+      // Extraer datos del análisis
+      const tech = analysis.technical_data || analysis.technical_analysis || {};
+      const ai = analysis.ai_inference || {};
+      const confReport = analysis.confidence_report || {};
+      const confItems = confReport.items || [];
+      
+      console.log('📊 Procesando datos para tabla:', { tech, ai, confReport });
+      
+      // Construir metadata desde confidence_report si está disponible
+      const metadata = [];
+      
+      // Buscar en confidence_report los valores reales
+      const findConfItem = (param) => confItems.find(item => 
+        item.parameter?.toLowerCase().includes(param.toLowerCase())
+      );
+      
+      // Buscar items específicos del confidence report
+      const nombreItem = findConfItem('nombre') || findConfItem('archivo');
+      const artistaItem = findConfItem('artista');
+      const cancionItem = findConfItem('canción') || findConfItem('referencia');
+      const generoItem = findConfItem('género');
+      const bpmItem = findConfItem('bpm');
+      const keyItem = findConfItem('key');
+      const moodItem = findConfItem('mood');
+      const tagsItem = findConfItem('tags');
+      
+      // Archivo
+      metadata.push({
+        label: '📁 Archivo',
+        value: nombreItem?.value || tech.filename || analysis.filename || 'No detectado',
+        confidence: (nombreItem?.confidence || 92) / 100,
+        source: nombreItem?.source || 'filename',
+        rationale: nombreItem?.rationale || 'Parseo del nombre del archivo'
+      });
+      
+      // Artista - solo si está disponible
+      if (artistaItem?.value && artistaItem.value !== 'No detectado') {
+        metadata.push({
+          label: '🎤 Artista',
+          value: artistaItem.value,
+          confidence: (artistaItem.confidence || 85) / 100,
+          source: artistaItem.source || 'filename',
+          rationale: artistaItem.rationale || 'Detectado del nombre del archivo'
+        });
+      }
+      
+      // Canción/Referencia - solo si está disponible
+      if (cancionItem?.value && cancionItem.value !== 'No detectada') {
+        metadata.push({
+          label: '🎵 Canción/Referencia',
+          value: cancionItem.value,
+          confidence: (cancionItem.confidence || 80) / 100,
+          source: cancionItem.source || 'filename',
+          rationale: cancionItem.rationale || 'Extraído del nombre del archivo'
+        });
+      }
+      
+      // GÉNERO DEL ARTISTA - CRITICAL
+      if (generoItem?.value && generoItem.value !== 'No detectado') {
+        metadata.push({
+          label: '🎸 Género',
+          value: generoItem.value,
+          confidence: (generoItem.confidence || 85) / 100,
+          source: generoItem.source || 'gemini',
+          rationale: generoItem.rationale || 'Género del artista mencionado, validado por Gemini'
+        });
+      }
+      
+      metadata.push({
+        label: '🎵 BPM',
+        value: bpmItem?.value || tech.bpm || analysis.bpm || 'No detectado',
+        confidence: (bpmItem?.confidence || tech.bpm_confidence || 0) / 100,
+        source: bpmItem?.source || 'audio',
+        rationale: bpmItem?.rationale || 'Detección automática desde audio'
+      });
+      
+      metadata.push({
+        label: '🎹 Tonalidad',
+        value: keyItem?.value || tech.key || analysis.key || 'No detectado',
+        confidence: (keyItem?.confidence || tech.key_confidence || 0) / 100,
+        source: keyItem?.source || 'audio',
+        rationale: keyItem?.rationale || 'Análisis cromático del audio'
+      });
+      
+      metadata.push({
+        label: '😊 Mood',
+        value: moodItem?.value || ai.mood || analysis.mood || 'No detectado',
+        confidence: (moodItem?.confidence || 0) / 100,
+        source: moodItem?.source || 'gemini',
+        rationale: moodItem?.rationale || 'Inferencia de IA basada en características musicales'
+      });
+      
+      // Tags generados por IA
+      const tagsArray = ai.tags || analysis.tags || [];
+      metadata.push({
+        label: '🏷️ Tags IA',
+        value: tagsArray.length > 0 ? `${tagsArray.length} tags generados` : 'No detectado',
+        confidence: (tagsItem?.confidence || 0) / 100,
+        source: tagsItem?.source || 'gemini',
+        rationale: tagsItem?.rationale || `Gemini genera ${tagsArray.length} tags considerando artista + canción + análisis`
+      });
+      
+      metadata.push({
+        label: '🎵 BPM',
+        value: bpmItem?.value || tech.bpm || analysis.bpm || 'No detectado',
+        confidence: (bpmItem?.confidence || tech.bpm_confidence || 0) / 100,
+        source: bpmItem?.source || 'audio',
+        rationale: bpmItem?.rationale || 'Detección automática desde audio'
+      });
+      
+      metadata.push({
+        label: '🎹 Tonalidad',
+        value: keyItem?.value || tech.key || analysis.key || 'No detectado',
+        confidence: (keyItem?.confidence || tech.key_confidence || 0) / 100,
+        source: keyItem?.source || 'audio',
+        rationale: keyItem?.rationale || 'Análisis cromático del audio'
+      });
+      
+      metadata.push({
+        label: '😊 Mood',
+        value: moodItem?.value || ai.mood || analysis.mood || 'No detectado',
+        confidence: (moodItem?.confidence || 0) / 100,
+        source: moodItem?.source || 'gemini',
+        rationale: moodItem?.rationale || 'Inferencia de IA basada en características musicales'
+      });
+      
+      // Progresión de acordes
+      if (ai.chord_progression && ai.chord_progression.length > 0) {
+        metadata.push({
+          label: '🎼 Acordes',
+          value: ai.chord_progression.slice(0, 3).join(' → '),
+          confidence: 0.75,
+          source: 'gemini',
+          rationale: 'Progresión de acordes detectada por IA'
+        });
+      }
+      
+      // Explicación de escala
+      if (ai.scale_explanation) {
+        metadata.push({
+          label: '🎹 Escala',
+          value: ai.scale_explanation.substring(0, 50) + '...',
+          confidence: 0.80,
+          source: 'gemini',
+          rationale: 'Análisis teórico musical por IA'
+        });
+      }
+
+      // Construir tabla con columna de fuente
+      let tableHTML = '<table style="width: 100%; border-collapse: collapse;">';
+      tableHTML += '<thead><tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">';
+      tableHTML += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: #1e293b;">Metadato</th>';
+      tableHTML += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: #1e293b;">Valor Detectado</th>';
+      tableHTML += '<th style="padding: 0.75rem; text-align: center; font-weight: 600; color: #1e293b;">Fuente</th>';
+      tableHTML += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: #1e293b;">Confianza</th>';
+      tableHTML += '</tr></thead><tbody>';
+
+      metadata.forEach((item, index) => {
+        const conf = parseFloat(item.confidence) || 0;
+        const confPercent = (conf * 100).toFixed(0);
+        let confClass = 'confidence-low';
+        let confColor = '#ef4444';
+        
+        if (conf >= 0.7) {
+          confClass = 'confidence-high';
+          confColor = '#10b981';
+        } else if (conf >= 0.4) {
+          confClass = 'confidence-medium';
+          confColor = '#f59e0b';
+        }
+
+        // Icono y color de fuente
+        let sourceIcon = '🤖';
+        let sourceBg = 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1))';
+        let sourceColor = '#6366f1';
+        
+        if (item.source === 'audio') {
+          sourceIcon = '🎵';
+          sourceBg = 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1))';
+          sourceColor = '#10b981';
+        } else if (item.source === 'filename') {
+          sourceIcon = '📁';
+          sourceBg = 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1))';
+          sourceColor = '#f59e0b';
+        }
+
+        const bgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+        
+        tableHTML += `<tr style="background: ${bgColor}; border-bottom: 1px solid #e2e8f0;" title="${item.rationale}">`;
+        tableHTML += `<td style="padding: 0.75rem; font-weight: 600; color: #64748b;">${item.label}</td>`;
+        tableHTML += `<td style="padding: 0.75rem; color: #1e293b; font-weight: 500;">${item.value}</td>`;
+        tableHTML += `<td style="padding: 0.75rem; text-align: center;">`;
+        tableHTML += `<span style="background: ${sourceBg}; color: ${sourceColor}; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600; display: inline-block;">${sourceIcon} ${item.source}</span>`;
+        tableHTML += `</td>`;
+        tableHTML += `<td style="padding: 0.75rem;">`;
+        tableHTML += `<div style="display: flex; align-items: center; gap: 0.5rem;">`;
+        tableHTML += `<span style="font-weight: 600; color: ${confColor}; min-width: 40px;">${confPercent}%</span>`;
+        tableHTML += `<div class="confidence-bar" style="flex: 1;"><div class="confidence-fill ${confClass}" style="width: ${confPercent}%;"></div></div>`;
+        tableHTML += `</div></td></tr>`;
+      });
+
+      tableHTML += '</tbody></table>';
+      
+      // Agregar resumen del método
+      if (confReport.summary) {
+        tableHTML += `<div style="margin-top: 1rem; padding: 0.75rem; background: #f1f5f9; border-radius: 8px; font-size: 0.85rem; color: #475569;">`;
+        tableHTML += `<strong>📋 Método:</strong> ${confReport.summary}`;
+        tableHTML += `</div>`;
+      }
+      
+      tableDiv.innerHTML = tableHTML;
+      resultsDiv.style.display = 'block';
+    }
+
+    function prefillFormWithAI(analysis) {
+      const tech = analysis.technical_data || analysis.technical_analysis || {};
+      const ai = analysis.ai_inference || {};
+      const confReport = analysis.confidence_report || {};
+      const confItems = confReport.items || [];
+      
+      console.log('✏️ Pre-llenando formulario con:', { tech, ai, confReport });
+      
+      // BPM
+      const bpmItem = confItems.find(item => item.parameter?.toLowerCase().includes('bpm'));
+      const bpmValue = bpmItem?.value || tech.bpm || analysis.bpm;
+      if (bpmValue) {
+        document.getElementById('bpmField').value = Math.round(parseFloat(bpmValue));
+        console.log('✅ BPM llenado:', Math.round(parseFloat(bpmValue)));
+      }
+      
+      // Key
+      const keyItem = confItems.find(item => item.parameter?.toLowerCase().includes('key'));
+      const keyValue = keyItem?.value || tech.key || analysis.key;
+      if (keyValue) {
+        document.getElementById('keyField').value = keyValue;
+        console.log('✅ Key llenado:', keyValue);
+      }
+      
+      // Mood
+      const moodItem = confItems.find(item => item.parameter?.toLowerCase().includes('mood'));
+      const moodValue = moodItem?.value || ai.mood || analysis.mood;
+      if (moodValue) {
+        document.getElementById('moodField').value = moodValue;
+        console.log('✅ Mood llenado:', moodValue);
+      }
+      
+      // Beat Type (desde genre o estilo)
+      const genreItem = confItems.find(item => item.parameter?.toLowerCase().includes('genre'));
+      const genreValue = genreItem?.value || ai.genre || analysis.genre;
+      if (genreValue && !document.getElementById('beatType').value) {
+        document.getElementById('beatType').value = genreValue;
+        console.log('✅ Beat Type llenado:', genreValue);
+      }
+      
+      // Reference (desde artistas similares si hay)
+      if (ai.similar_artists && ai.similar_artists.length > 0) {
+        const refValue = ai.similar_artists.slice(0, 2).join(', ');
+        if (!document.getElementById('reference').value) {
+          document.getElementById('reference').value = refValue;
+          console.log('✅ Reference llenado:', refValue);
+        }
+      }
+      
+      // Tags - COMPLETO con todos los tags generados por Gemini
+      const tagsArray = ai.tags || analysis.tags || [];
+      if (tagsArray.length > 0) {
+        // Convertir array a string separado por comas
+        const tagsString = tagsArray.join(', ');
+        document.getElementById('tags').value = tagsString;
+        console.log(`✅ Tags llenados (${tagsArray.length} tags):`, tagsString);
+      }
+      
+      // Descripción - combinar múltiples campos de IA
+      let autoDescription = [];
+      
+      if (ai.mood) {
+        autoDescription.push(`Mood: ${ai.mood}`);
+      }
+      
+      if (ai.energy_level) {
+        autoDescription.push(`Energía: ${ai.energy_level}`);
+      }
+      
+      if (ai.instruments && ai.instruments.length > 0) {
+        autoDescription.push(`Instrumentos: ${ai.instruments.join(', ')}`);
+      }
+      
+      if (ai.chord_progression && ai.chord_progression.length > 0) {
+        autoDescription.push(`Acordes: ${ai.chord_progression.join(' → ')}`);
+      }
+      
+      if (ai.scale_explanation) {
+        autoDescription.push(`Escala: ${ai.scale_explanation}`);
+      }
+      
+      if (ai.style_characteristics) {
+        autoDescription.push(`Características: ${ai.style_characteristics}`);
+      }
+      
+      if (ai.recommended_use_cases && ai.recommended_use_cases.length > 0) {
+        autoDescription.push(`Casos de uso: ${ai.recommended_use_cases.join(', ')}`);
+      }
+      
+      if (autoDescription.length > 0 && !document.getElementById('description').value) {
+        const descValue = autoDescription.join('\n');
+        document.getElementById('description').value = descValue;
+        console.log('✅ Descripción auto-generada:', descValue);
+      }
+
+      // Sugerir nombre basado en características
+      if (moodValue && genreValue) {
+        const suggestedName = `${moodValue} ${genreValue} Beat`;
+        document.getElementById('beatName').placeholder = `Sugerido: ${suggestedName}`;
+      } else if (genreValue) {
+        document.getElementById('beatName').placeholder = `Sugerido: ${genreValue} Beat`;
+      }
+      
+      console.log('✅ Formulario pre-llenado completamente');
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!uploadedFile) {
+        alert('❌ Por favor selecciona un archivo de audio');
+        return;
+      }
+
+      if (!uploadedCover) {
+        alert('❌ Por favor selecciona una portada para el beat');
+        return;
+      }
+
+      const beatName = document.getElementById('beatName').value.trim();
+      const beatType = document.getElementById('beatType').value.trim();
+      const keyValue = document.getElementById('keyField').value.trim();
+      const bpmValue = parseInt(document.getElementById('bpmField').value);
+      const price = parseInt(document.getElementById('price').value);
+      
+      if (!beatName || !beatType || !keyValue || !bpmValue || !price) {
+        alert('❌ Por favor completa todos los campos obligatorios');
+        return;
+      }
+
+      // Mostrar barra de progreso
+      const progressSection = document.getElementById('uploadProgressSection');
+      progressSection.style.display = 'block';
+
+      // Simulación de estados del proceso
+      updateUploadStatus('Preparando carga...', 0);
+      updateProcessStep(1, '✓', '#10b981', 'Archivo');
+
+      setTimeout(() => {
+        updateUploadStatus('Analizando metadatos...', 20);
+        updateProcessStep(2, '⏳', '#6366f1', 'Análisis');
+      }, 500);
+
+      setTimeout(() => {
+        updateUploadStatus('Generando información...', 40);
+        updateProcessStep(3, '⏳', '#6366f1', 'Metadatos');
+      }, 1500);
+
+      setTimeout(() => {
+        updateUploadStatus('Subiendo archivos...', 60);
+        updateProcessStep(4, '⏳', '#6366f1', 'Completar');
+      }, 2500);
+
+      const formData = new FormData();
+      formData.append('beat_name', beatName);
+      formData.append('beat_type', beatType);
+      formData.append('reference', document.getElementById('reference').value);
+      formData.append('key', keyValue);
+      formData.append('bpm', bpmValue);
+      formData.append('mood', document.getElementById('moodField').value);
+      formData.append('price', price);
+      formData.append('tags', document.getElementById('tags').value);
+      formData.append('description', document.getElementById('description').value);
+      formData.append('audio', uploadedFile);
+      formData.append('cover', uploadedCover);
+      formData.append('producer', usuarioActivo.email);
+
+      if (aiAnalysisData) {
+        formData.append('ai_analysis', JSON.stringify(aiAnalysisData));
+      }
+
+      // Monitorear progreso
+      const uploadXhr = new XMLHttpRequest();
+
+      uploadXhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          updateUploadStatus('Subiendo archivos...', Math.min(95, percentComplete));
+          const percent = Math.round(percentComplete);
+          document.getElementById('uploadPercent').textContent = percent + '%';
+          document.getElementById('uploadProgressBar').style.width = percent + '%';
+        }
+      });
+
+      uploadXhr.addEventListener('load', () => {
+        if (uploadXhr.status === 200) {
+          try {
+            const result = JSON.parse(uploadXhr.responseText);
+            
+            updateProcessStep(1, '✓', '#10b981', 'Archivo');
+            updateProcessStep(2, '✓', '#10b981', 'Análisis');
+            updateProcessStep(3, '✓', '#10b981', 'Metadatos');
+            updateProcessStep(4, '✓', '#10b981', 'Completar');
+            
+            updateUploadStatus('¡Completado! Redirigiendo...', 100);
+            document.getElementById('uploadPercent').textContent = '100%';
+
+            setTimeout(() => {
+              alert('✅ ¡Beat subido exitosamente!');
+              document.getElementById('uploadForm').reset();
+              document.getElementById('fileInfo').style.display = 'none';
+              document.getElementById('aiResults').style.display = 'none';
+              document.getElementById('uploadProgressSection').style.display = 'none';
+              uploadedFile = null;
+              uploadedCover = null;
+              aiAnalysisData = null;
+              document.getElementById('coverPreview').style.display = 'none';
+              document.getElementById('coverPlaceholder').style.display = 'block';
+              setTimeout(() => location.reload(), 1500);
+            }, 1000);
+          } catch (e) {
+            alert('⚠️ Error. Intenta nuevamente.');
+          }
+        } else {
+          alert('❌ Error: ' + (uploadXhr.responseText || 'Error en la carga'));
+        }
+      });
+
+      uploadXhr.addEventListener('error', () => {
+        alert('❌ Error en la conexión. Intenta nuevamente.');
+      });
+
+      uploadXhr.open('POST', '/upload-beat', true);
+      uploadXhr.send(formData);
+    });
+
+    function updateUploadStatus(message, percent) {
+      document.getElementById('uploadStatus').textContent = message;
+      document.getElementById('uploadPercent').textContent = Math.round(percent) + '%';
+      document.getElementById('uploadProgressBar').style.width = percent + '%';
+    }
+
+    function updateProcessStep(step, icon, color, text) {
+      const stepMap = {
+        2: { iconId: 'step2Icon', textId: 'step2Text', borderElement: 1 },
+        3: { iconId: 'step3Icon', textId: 'step3Text', borderElement: 2 },
+        4: { iconId: 'step4Icon', textId: 'step4Text', borderElement: 3 }
+      };
+
+      const config = stepMap[step];
+      if (config) {
+        document.getElementById(config.iconId).textContent = icon;
+        document.getElementById(config.textId).textContent = text;
+      }
+
+      const stepElements = document.querySelectorAll('[style*="border-left"]');
+      if (stepElements[step - 1]) {
+        const borderColor = color === '#10b981' ? '#10b981' : '#6366f1';
+        stepElements[step - 1].style.borderLeftColor = borderColor;
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('usuarioActivo');
+      window.location.href = '../login.html';
+    }
+  </script>
+</body>
+</html>

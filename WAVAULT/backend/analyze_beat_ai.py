@@ -219,8 +219,10 @@ def extract_filename_metadata(filename):
         # - "Song - Artist Type Beat"
         
         # Intentar extraer artista y canción
-        if " - " in name:
-            parts = name.split(" - ")
+        # Soportar múltiples separadores: " - ", "_-_", " -", etc.
+        separator_match = re.search(r'\s*[-_]+\s*', name)
+        if separator_match:
+            parts = re.split(r'\s*[-_]+\s*', name, maxsplit=1)
             
             # Caso 1: "Artist - Song TYPE BEAT - Key BPM"
             if len(parts) >= 2:
@@ -248,6 +250,13 @@ def extract_filename_metadata(filename):
                     
                     # Buscar inicio de BPM
                     for pattern in bpm_patterns:
+                        match = re.search(pattern, rest)
+                        if match:
+                            tech_start = min(tech_start, match.start())
+                    
+                    song_part = rest[:tech_start].strip()
+                    if song_part:
+                        metadata["song"] = song_part
                         match = re.search(pattern, rest)
                         if match:
                             tech_start = min(tech_start, match.start())
@@ -1204,14 +1213,68 @@ def build_baseline_confidence(technical_data, ai_inference, filename):
     mood_conf = 78.0 if ai_inference.get("mood") else 50.0
     tags_conf = 80.0 if ai_inference.get("tags") else 60.0
 
+    # Extraer metadata del filename para mostrar GÉNERO en la tabla
+    file_metadata = extract_filename_metadata(filename)
+    genre_from_file = file_metadata.get("genre_hint")
+    artist_from_file = file_metadata.get("artist")
+    song_from_file = file_metadata.get("song")
+
     items = [
         {
-            "parameter": "Nombre/Archivo",
+            "parameter": "📁 Nombre/Archivo",
             "value": filename or "Desconocido",
             "confidence": clamp_conf(92.0 if filename else 60.0),
             "source": "filename",
             "rationale": "Parseo directo del nombre del archivo"
         },
+        {
+            "parameter": "🎤 Artista Detectado",
+            "value": artist_from_file or "No detectado",
+            "confidence": clamp_conf(85.0 if artist_from_file else 0.0),
+            "source": "filename",
+            "rationale": "Extraído del nombre del archivo (antes del primer '-')"
+        },
+        {
+            "parameter": "🎵 Canción/Referencia",
+            "value": song_from_file or "No detectada",
+            "confidence": clamp_conf(80.0 if song_from_file else 0.0),
+            "source": "filename",
+            "rationale": "Extraído del nombre del archivo (entre artista y TYPE BEAT)"
+        },
+    ]
+    
+    # AGREGACIÓN DE GÉNERO DETECTADO - CRÍTICO
+    # Intentar extraer género de los tags generados por Gemini
+    genre_detected = genre_from_file
+    
+    if not genre_detected and ai_inference.get("tags"):
+        # Buscar en los tags principales (Gemini ordena por relevancia)
+        # Géneros comunes conocidos
+        known_genres = ["R&B", "Hip-Hop", "Trap", "House", "Reggaeton", "Afrobeat", 
+                       "Drill", "UK Drill", "Drum & Bass", "Dubstep", "Trap Latino",
+                       "Dembow", "Pop", "Electronic", "Techno", "Indie", "Rock",
+                       "Funk", "Soul", "Jazz", "Lo-Fi", "Ambient"]
+        
+        for tag in ai_inference.get("tags", []):
+            if tag in known_genres:
+                genre_detected = tag
+                break
+    
+    if artist_from_file or genre_detected or (artist_from_file and song_from_file):
+        # Si hay artista, Gemini habrá analizado el género
+        detected_genre = genre_detected or ("Detectado por Gemini" if artist_from_file else "No detectado")
+        
+        if detected_genre != "No detectado":
+            items.append({
+                "parameter": "🎸 Género (del Artista)",
+                "value": detected_genre,
+                "confidence": clamp_conf(95.0 if genre_from_file else 85.0 if genre_detected else 75.0),
+                "source": "filename" if genre_from_file else "gemini",
+                "rationale": f"Género del artista {'extraído del filename' if genre_from_file else 'identificado por Gemini desde tags generados'}"
+            })
+    
+    # Agregar información técnica
+    items.extend([
         {
             "parameter": "BPM",
             "value": str(technical_data.get("bpm", "-")),
@@ -1235,12 +1298,12 @@ def build_baseline_confidence(technical_data, ai_inference, filename):
         },
         {
             "parameter": "Tags (IA)",
-            "value": ", ".join(ai_inference.get("tags", [])[:6]) or "-",
+            "value": ", ".join(ai_inference.get("tags", [])[:8]) or "-",
             "confidence": clamp_conf(tags_conf),
             "source": "gemini",
-            "rationale": "Gemini genera y prioriza tags obligatorios del filename"
+            "rationale": f"Gemini genera {len(ai_inference.get('tags', []))} tags considerando: artista + canción + análisis + búsqueda web"
         }
-    ]
+    ])
 
     return items
 

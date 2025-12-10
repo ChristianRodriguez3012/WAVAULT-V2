@@ -3,46 +3,522 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WAVAULT - Subir Beat</title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <title>WAVAULT - Redirigiendo...</title>
+    <script>
+        // Redirigir al panel moderno del productor
+        window.location.href = '/dashboard/producer.html';
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .producer-header {
+            background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+            color: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        .producer-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
 
-        .container {
-            max-width: 700px;
+        .producer-header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .producer-container {
+            max-width: 1200px;
             margin: 0 auto;
+            padding: 0 2rem 4rem;
         }
 
-        .upload-container {
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--gray-light);
+        }
+
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--gray);
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+            margin-bottom: -2px;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-box {
             background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            margin-bottom: 30px;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
-        .upload-title {
-            font-size: 2em;
-            color: #667eea;
-            margin-bottom: 10px;
+        .upload-area {
+            border: 3px dashed var(--primary);
+            border-radius: 12px;
+            padding: 4rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(236, 72, 153, 0.05));
+            margin-bottom: 2rem;
         }
 
-        .upload-subtitle {
-            color: #999;
-            margin-bottom: 30px;
-            font-size: 0.95em;
+        .upload-area:hover,
+        .upload-area.dragover {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1));
+            border-color: var(--secondary);
+            transform: scale(1.01);
         }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            color: var(--gray);
+            font-size: 0.95rem;
+        }
+
+        .beats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .beat-card-producer {
+            background: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .beat-card-producer:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        .beat-card-producer-image {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .beat-card-producer-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .beat-card-producer-info {
+            padding: 1.5rem;
+        }
+
+        .beat-card-producer-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .beat-card-producer-meta {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .beat-card-producer-price {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 1rem 0;
+        }
+
+        .beat-card-producer-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-edit {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-delete {
+            background: #f5f5f5;
+            color: #e74c3c;
+        }
+
+        .btn-delete:hover {
+            background: #f0f0f0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--gray);
+            font-size: 0.95rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar">
+        <div class="navbar-container">
+            <div class="logo">
+                <i class="fas fa-compact-disc"></i>
+                <span>WAVAULT</span>
+            </div>
+            <nav class="nav-links">
+                <a href="index.html" class="nav-link">Explorar</a>
+                <a href="#" onclick="logout()" class="nav-link btn-register">Cerrar Sesión</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="producer-header">
+        <h1>
+            <i class="fas fa-music"></i> Panel del Productor
+        </h1>
+        <p>Gestiona y vende tus beats en WAVAULT</p>
+    </div>
+
+    <div class="producer-container">
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('uploads')">
+                <i class="fas fa-cloud-upload-alt" style="margin-right: 0.5rem;"></i> Subir Beat
+            </button>
+            <button class="tab-btn" onclick="switchTab('beats')">
+                <i class="fas fa-compact-disc" style="margin-right: 0.5rem;"></i> Mis Beats
+            </button>
+            <button class="tab-btn" onclick="switchTab('stats')">
+                <i class="fas fa-chart-bar" style="margin-right: 0.5rem;"></i> Estadísticas
+            </button>
+        </div>
+
+        <!-- TAB 1: SUBIR BEAT -->
+        <div id="uploads" class="tab-content active">
+            <div class="upload-box">
+                <form id="uploadForm">
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="audioFile" accept=".mp3,.wav,.flac">
+                        <div class="upload-icon">
+                            <i class="fas fa-music"></i>
+                        </div>
+                        <p class="upload-text">Arrastra tu beat aquí o haz clic</p>
+                        <p class="upload-hint">Formatos soportados: MP3, WAV, FLAC</p>
+                    </div>
+
+                    <div id="fileInfo" style="display: none; background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid var(--primary);">
+                        <div style="margin-bottom: 1rem;">
+                            <span style="color: var(--gray); font-size: 0.9rem;">Archivo seleccionado:</span>
+                            <div style="font-weight: 600; color: var(--dark); margin-top: 0.3rem;" id="fileName"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-tag"></i> Nombre del Beat</label>
+                            <input type="text" id="beatName" placeholder="Ej: Dark Trap Vibes" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-music"></i> Tipo de Beat</label>
+                            <input type="text" id="beatType" placeholder="Ej: Trap, Hip-Hop, Reggaeton" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-user-circle"></i> Referencia/Artista</label>
+                            <input type="text" id="reference" placeholder="Ej: Drake, Bad Bunny" />
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label><i class="fas fa-music"></i> Tonalidad (Key)</label>
+                                <input type="text" id="keyField" placeholder="Ej: Fm, Am" required />
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-tachometer-alt"></i> BPM</label>
+                                <input type="number" id="bpmField" min="50" max="220" placeholder="Ej: 90" required />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-heart"></i> Mood/Emoción</label>
+                            <input type="text" id="moodField" placeholder="Ej: Dark & Atmospheric" />
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-dollar-sign"></i> Precio (USD)</label>
+                            <input type="number" id="price" min="1" placeholder="Ej: 25" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-align-left"></i> Descripción</label>
+                            <textarea id="description" placeholder="Describe tu beat..." rows="3"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn-register" style="width: 100%; padding: 1rem; margin-top: 1rem;">
+                            <i class="fas fa-upload"></i> Subir Beat
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- TAB 2: MIS BEATS -->
+        <div id="beats" class="tab-content">
+            <div id="beatsContainer">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-compact-disc"></i>
+                    </div>
+                    <p class="empty-state-text">No has subido beats aún</p>
+                    <p style="color: #999; margin-top: 0.5rem;">Sube tu primer beat para comenzar a vender</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: ESTADÍSTICAS -->
+        <div id="stats" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="statBeats">0</div>
+                    <div class="stat-label">Beats Subidos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statVentas">0</div>
+                    <div class="stat-label">Total Ventas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statIngresos">$0</div>
+                    <div class="stat-label">Ingresos Totales</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statDescargas">0</div>
+                    <div class="stat-label">Descargas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer" style="margin-top: 4rem;">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>WAVAULT</h4>
+                <p>La plataforma de beats número 1</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <script>
+        let uploadedFile = null;
+
+        function switchTab(tabName) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Remover clase active de botones
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionado
+            document.getElementById(tabName).classList.add('active');
+            event.target.closest('.tab-btn').classList.add('active');
+        }
+
+        // Drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        const audioFile = document.getElementById('audioFile');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            audioFile.files = e.dataTransfer.files;
+            handleFileSelect();
+        });
+
+        uploadArea.addEventListener('click', () => audioFile.click());
+        audioFile.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            if (audioFile.files.length > 0) {
+                uploadedFile = audioFile.files[0];
+                document.getElementById('fileName').textContent = uploadedFile.name;
+                document.getElementById('fileInfo').style.display = 'block';
+            }
+        }
+
+        // Submit form
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!uploadedFile) {
+                alert('❌ Por favor selecciona un archivo de audio');
+                return;
+            }
+
+            const beatName = document.getElementById('beatName').value.trim();
+            const beatType = document.getElementById('beatType').value.trim();
+            const keyValue = document.getElementById('keyField').value.trim();
+            const bpmValue = parseInt(document.getElementById('bpmField').value);
+            const price = parseInt(document.getElementById('price').value);
+
+            if (!beatName || !beatType || !keyValue || !bpmValue || !price) {
+                alert('❌ Por favor completa todos los campos obligatorios');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('beat_name', beatName);
+            formData.append('beat_type', beatType);
+            formData.append('reference', document.getElementById('reference').value);
+            formData.append('key', keyValue);
+            formData.append('bpm', bpmValue);
+            formData.append('mood', document.getElementById('moodField').value);
+            formData.append('price', price);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('audio', uploadedFile);
+            formData.append('producer', 'productor');
+
+            try {
+                const response = await fetch('/upload-beat', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success || response.ok) {
+                    alert('✅ ¡Beat subido exitosamente!');
+                    document.getElementById('uploadForm').reset();
+                    document.getElementById('fileInfo').style.display = 'none';
+                    uploadedFile = null;
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert(`❌ Error: ${result.message || 'No se pudo subir el beat'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('usuarioActivo');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
 
         .upload-area {
             border: 3px dashed #667eea;

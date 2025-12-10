@@ -95,79 +95,7 @@ app.post("/login", (req, res) => {
 // ==========================
 // ✅ SUBIDA DE BEATS (POST)
 // ==========================
-app.post("/upload-beat", upload.single("audio"), (req, res) => {
-  const { beat_name, beat_type, reference, key, bpm, mood, tags, price, description, producer } = req.body;
-  const audioFile = req.file;
-
-  // ✅ Validar campos requeridos
-  if (!beat_name || !beat_type || !key || !bpm || !price || !producer || !audioFile) {
-    return res.status(400).json({ 
-      success: false,
-      error: "Faltan campos o archivos requeridos." 
-    });
-  }
-
-  // ✅ Validar tags (mínimo 3, máximo 30)
-  const tagsArray = typeof tags === 'string' 
-    ? tags.split(',').map(t => t.trim()).filter(t => t) 
-    : Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(t => t) : [];
-  
-  if (tagsArray.length < 3) {
-    return res.status(400).json({ success: false, error: "Mínimo 3 tags requeridos." });
-  }
-  
-  if (tagsArray.length > 30) {
-    return res.status(400).json({ success: false, error: "Máximo 30 tags permitidos." });
-  }
-
-  const tagsStr = tagsArray.join(',');
-  const audioPath = `uploads/audio/${audioFile.filename}`;
-  const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
-
-  console.log("✅ Beat guardado:");
-  console.log("   📝 Nombre:", beat_name);
-  console.log("   🎵 Tipo:", beat_type);
-  console.log("   🎸 Key:", key);
-  console.log("   🎵 BPM:", bpm);
-  console.log("   🏷️ Tags:", tagsStr);
-
-  db.run(
-    `INSERT INTO beats (beat_name, beat_type, reference, key, bpm, mood, tags, audio, price, description, producer)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [beat_name, beat_type, reference || null, key, bpm, mood || null, tagsStr, audioPath, price, description || null, producer],
-    function (err) {
-      if (err) {
-        console.error("❌ Error al guardar beat:", err.message);
-        return res.status(500).json({ success: false, error: "Error al guardar el beat." });
-      }
-
-      const beatId = this.lastID;
-
-      // ✅ Generar demo con marca de agua usando Python
-      if (audioFile.mimetype === "audio/mpeg" || audioFile.filename.endsWith(".mp3")) {
-        const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");
-        const scriptPath = path.join(__dirname, "generar_demo.py");
-
-        const py = spawn("python3", [scriptPath, fullAudioPath, demoPath]);
-
-        py.stdout.on("data", data => console.log("🐍 Python:", data.toString()));
-        py.stderr.on("data", data => console.error("❌ Python error:", data.toString()));
-
-        py.on("close", (code) => {
-          if (code === 0) {
-            console.log("✅ Demo generada:", demoPath);
-            const relativeDemoPath = audioPath.replace(/\.mp3$/i, "_demo.mp3");
-            db.run(`UPDATE beats SET demo = ? WHERE id = ?`, [relativeDemoPath, beatId]);
-          } else {
-            console.error("❌ Error generando demo con Python");
-          }
-        });
-      }
-
-      res.status(201).json({ success: true, id: beatId });
-    }
-  );
-});
+// NOTA: Endpoint movido a línea 585 con soporte para múltiples archivos (audio + cover)
 
 // ===================
 // ✅ OBTENER BEATS
@@ -582,37 +510,49 @@ app.post("/api/enrich-beats-simple", async (req, res) => {
  * Guarda un beat en la BD después de confirmación del usuario
  * El beat SOLO se guarda si el usuario confirma en el modal
  */
-app.post("/upload-beat", upload.single("audio"), async (req, res) => {
+app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.files || !req.files.audio) {
       return res.status(400).json({
         success: false,
         message: "No se proporcionó archivo de audio"
       });
     }
 
-    const { artist, title, bpm, key, type, mood, price, description, producer } = req.body;
-
-    // Validar campos requeridos
-    if (!artist || !title || !bpm || !key || !price || !producer) {
+    if (!req.files.cover) {
       return res.status(400).json({
         success: false,
-        message: "Faltan campos requeridos (artist, title, bpm, key, price, producer)"
+        message: "No se proporcionó imagen de portada"
       });
     }
 
-    const audioPath = `uploads/audio/${req.file.filename}`;
+    const audioFile = req.files.audio[0];
+    const coverFile = req.files.cover[0];
+
+    const { beat_name, beat_type, reference, key, bpm, mood, price, tags, description, producer, ai_analysis } = req.body;
+
+    // Validar campos requeridos
+    if (!beat_name || !bpm || !key || !price || !producer) {
+      return res.status(400).json({
+        success: false,
+        message: "Faltan campos requeridos (beat_name, bpm, key, price, producer)"
+      });
+    }
+
+    const audioPath = `uploads/audio/${audioFile.filename}`;
+    const coverPath = `uploads/covers/${coverFile.filename}`;
     const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
 
-    console.log(`✅ Guardando beat: ${title} por ${artist}`);
+    console.log(`✅ Guardando beat: ${beat_name}`);
     console.log(`   🎵 Audio: ${audioPath}`);
-    console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${type}`);
+    console.log(`   🖼️  Cover: ${coverPath}`);
+    console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${beat_type}`);
 
     // Insertar en BD
     db.run(
       `INSERT INTO beats (title, artist, bpm, key, type, mood, price, tags, cover, audio, producer, description)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, artist, bpm, key, type, mood, price, "beat", null, audioPath, producer, description || null],
+      [beat_name, reference || 'Unknown', bpm, key, beat_type, mood, price, tags || "beat", coverPath, audioPath, producer, description || null],
       function (err) {
         if (err) {
           console.error("❌ Error al guardar beat:", err.message);
@@ -624,6 +564,16 @@ app.post("/upload-beat", upload.single("audio"), async (req, res) => {
 
         const beatId = this.lastID;
         console.log(`✅ Beat guardado con ID: ${beatId}`);
+
+        // Guardar análisis IA si está disponible
+        if (ai_analysis) {
+          try {
+            const analysisData = JSON.parse(ai_analysis);
+            console.log(`🤖 Guardando análisis IA para beat ${beatId}`);
+          } catch (e) {
+            console.error('⚠️ Error parseando ai_analysis:', e.message);
+          }
+        }
 
         // Generar demo con marca de agua (opcional)
         const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");

@@ -23,9 +23,9 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS beats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
-      artist TEXT,
+      artist TEXT DEFAULT 'Unknown Artist',
       price REAL NOT NULL,
-      tags TEXT,
+      tags TEXT DEFAULT 'beat',
       bpm INTEGER,
       key TEXT,
       type TEXT,

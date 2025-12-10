@@ -3,21 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WAVAULT - Feed Público</title>
+  <title>WAVAULT - Plataforma de Beats</title>
   <link rel="stylesheet" href="assets/css/style.css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
 </head>
 <body>
-  <header>
-    <h1>🎧 WAVAULT</h1>
-    <nav>
-      <a href="login.html">Iniciar Sesión</a>
-      <a href="register.html">Registrarse</a>
-    </nav>
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <i class="fas fa-compact-disc"></i>
+        <span>WAVAULT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#" class="nav-link">Explorar</a>
+        <a href="#" class="nav-link">Tendencias</a>
+        <a href="login.html" class="nav-link btn-login">Iniciar Sesión</a>
+        <a href="register.html" class="nav-link btn-register">Registrarse</a>
+      </nav>
+    </div>
   </header>
 
   <main>
-    <section class="search-bar">
-      <input type="text" id="searchInput" placeholder="Buscar beats..." />
+    <section class="hero">
+      <div class="hero-content">
+        <h1>Descubre Beats Originales</h1>
+        <p>La plataforma número 1 para productores y artistas</p>
+        <div class="search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Busca beats, géneros, productores..." />
+        </div>
+      </div>
+    </section>
+
+    <section class="filters">
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">Todos</button>
+        <button class="filter-btn" data-filter="trap">Trap</button>
+        <button class="filter-btn" data-filter="hip-hop">Hip-Hop</button>
+        <button class="filter-btn" data-filter="reggaeton">Reggaeton</button>
+        <button class="filter-btn" data-filter="pop">Pop</button>
+      </div>
     </section>
 
     <section class="beat-feed" id="beatFeed">
@@ -25,8 +50,32 @@
     </section>
   </main>
 
-  <footer>
-    <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>WAVAULT</h4>
+        <p>Tu plataforma de beats de confianza</p>
+      </div>
+      <div class="footer-section">
+        <h4>Enlaces</h4>
+        <ul>
+          <li><a href="#">Términos de Servicio</a></li>
+          <li><a href="#">Privacidad</a></li>
+          <li><a href="#">Contacto</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h4>Redes Sociales</h4>
+        <div class="social-links">
+          <a href="#"><i class="fab fa-twitter"></i></a>
+          <a href="#"><i class="fab fa-instagram"></i></a>
+          <a href="#"><i class="fab fa-youtube"></i></a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 WAVAULT. Todos los derechos reservados.</p>
+    </div>
   </footer>
 
   <script src="assets/js/main.js"></script>
