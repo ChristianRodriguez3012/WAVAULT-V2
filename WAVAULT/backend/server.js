@@ -1,12 +1,15 @@
-const express = require("express");
 const path = require("path");
+// Load environment variables from .env file
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+const express = require("express");
 const fs = require("fs");
 const multer = require("multer");
 const db = require("./db");
 const { spawn } = require("child_process");
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // =====================
 // ✅ CONFIGURAR MULTER
