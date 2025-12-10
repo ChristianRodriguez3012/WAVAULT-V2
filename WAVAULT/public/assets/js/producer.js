@@ -33,6 +33,30 @@ document.addEventListener("DOMContentLoaded", () => {
   let playlist = [];
   let historial = [];
   let currentIndex = -1;
+  let formDirty = false; // Track if form has uncommitted changes
+
+  // ✅ Track form changes to detect uncommitted changes
+  const formFields = ['tituloBeat', 'precioBeat', 'tag1', 'tag2', 'tag3', 'bpm', 'key', 'archivoAudio', 'archivoPortada'];
+  formFields.forEach(fieldId => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.addEventListener('input', () => {
+        formDirty = true;
+      });
+      field.addEventListener('change', () => {
+        formDirty = true;
+      });
+    }
+  });
+
+  // ✅ Warn user about uncommitted changes before leaving page
+  window.addEventListener('beforeunload', (e) => {
+    if (formDirty) {
+      e.preventDefault();
+      e.returnValue = 'Uncommitted changes detected. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  });
 
   window.mostrarSeccion = function (seccion) {
     document.querySelectorAll('.productor-section').forEach(s => s.style.display = 'none');
@@ -321,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         mostrarModal("✅ Beat subido exitosamente.");
         document.getElementById('formSubirBeat').reset();
+        formDirty = false; // Clear dirty state after form reset
         document.getElementById("labelAudio").textContent = "🎧 Archivo de Audio";
         document.getElementById("labelPortada").textContent = "🖼️ Portada del Beat";
         await cargarBeats();
