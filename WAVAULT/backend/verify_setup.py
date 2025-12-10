@@ -22,7 +22,8 @@ def check_api_key():
     """Verifica que la API key está cargada"""
     load_dotenv()
     api_key = os.getenv('GEMINI_API_KEY')
-    if api_key and api_key != 'tu_api_key_aqui':
+    # Check if API key exists and looks like a valid Google API key
+    if api_key and len(api_key) > 20 and api_key.startswith('AIza'):
         print(f"✅ GEMINI_API_KEY cargada: {api_key[:10]}...")
         return True
     else:
