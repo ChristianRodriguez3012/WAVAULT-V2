@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WAVAULT Marketplace</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', 'Montserrat', sans-serif; }
+    .gold-glow { box-shadow: 0 0 0 2px #D4AF37, 0 0 8px #D4AF3744; }
+    .track-card:hover { box-shadow: 0 2px 16px #D4AF3744; border-color: #D4AF37; }
+    .circle-active { border: 2px solid #D4AF37; box-shadow: 0 0 8px #D4AF3788; }
+    .pill { border: 1px solid #1F2E40; background: transparent; color: #A0AAB5; border-radius: 9999px; padding: 0.25rem 0.75rem; margin-right: 0.5rem; font-size: 0.95rem; }
+    .pill-active { border-color: #D4AF37; color: #D4AF37; }
+  </style>
+</head>
+<body class="bg-[#020B1C] text-white min-h-screen">
+  <!-- HEADER -->
+  <header class="sticky top-0 z-30 bg-[#0A1525] border-b border-[#1F2E40] flex items-center h-16 px-6">
+    <div class="flex items-center gap-4 w-full">
+      <!-- Logo -->
+      <div class="w-10 h-10 bg-white/10 rounded-full"></div>
+      <!-- Buscador -->
+      <div class="flex-1 flex justify-center">
+        <input type="text" placeholder="Buscar pistas..." class="w-full max-w-lg bg-[#0A1525] border border-[#1F2E40] rounded-full px-5 py-2 text-[#A0AAB5] focus:outline-none focus:border-[#D4AF37]"/>
+      </div>
+      <!-- Iconos y CTA -->
+      <div class="flex items-center gap-4">
+        <button class="text-[#A0AAB5] hover:text-[#D4AF37]"><svg width="22" height="22" fill="none"><circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="2"/><path d="M11 7v4l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="text-[#A0AAB5] hover:text-[#D4AF37]"><svg width="22" height="22" fill="none"><path d="M11 19a8 8 0 100-16 8 8 0 000 16z" stroke="currentColor" stroke-width="2"/><circle cx="11" cy="11" r="3" stroke="currentColor" stroke-width="2"/></svg></button>
+        <button class="bg-[#D4AF37] text-[#020B1C] font-bold px-4 py-2 rounded-full hover:bg-[#bfa12c] transition">Subir Música</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Top Charts y Filtros Circulares -->
+    <section>
+      <h2 class="text-2xl font-bold mb-6">Top Charts</h2>
+      <div class="flex gap-6 mb-6">
+        <!-- Filtros circulares -->
+        <div class="flex gap-4">
+          <div class="flex flex-col items-center">
+            <div class="w-15 h-15 flex items-center justify-center rounded-full bg-[#0A1525] text-[#A0AAB5]"><svg width="28" height="28" fill="none"><path d="M14 4v20M4 14h20" stroke="currentColor" stroke-width="2"/></svg></div>
+            <span class="mt-2 text-xs text-[#A0AAB5]">Nuevo</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <div class="w-15 h-15 flex items-center justify-center rounded-full bg-[#0A1525] circle-active text-[#D4AF37] gold-glow"><svg width="28" height="28" fill="none"><path d="M14 4v20M4 14h20" stroke="currentColor" stroke-width="2"/></svg></div>
+            <span class="mt-2 text-xs text-[#D4AF37] font-bold">Top Charts</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <div class="w-15 h-15 flex items-center justify-center rounded-full bg-[#0A1525] text-[#A0AAB5]"><svg width="28" height="28" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="2"/></svg></div>
+            <span class="mt-2 text-xs text-[#A0AAB5]">Exclusivo</span>
+          </div>
+          <!-- ...más filtros -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Barra de Herramientas y Tags -->
+    <div class="flex flex-wrap items-center gap-2 mb-6">
+      <span class="pill pill-active">Trap</span>
+      <span class="pill">Drake</span>
+      <span class="pill">Guitar</span>
+      <span class="pill">Reggaeton</span>
+      <span class="pill">Afrobeat</span>
+      <!-- ...más tags -->
+      <button class="pill text-xs flex items-center gap-1">Género <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#A0AAB5" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button class="pill text-xs flex items-center gap-1">Precio <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#A0AAB5" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button class="pill text-xs flex items-center gap-1">BPM <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#A0AAB5" stroke-width="2" stroke-linecap="round"/></svg></button>
+    </div>
+
+    <!-- GRID DE PISTAS -->
+    <section>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-8">
+        <!-- CARD DE PRODUCTO -->
+        <div class="track-card bg-[#0A1525] border border-[#1F2E40] rounded-xl p-4 flex flex-col transition">
+          <img src="cover1.jpg" alt="Cover" class="aspect-square w-full rounded-lg mb-4 object-cover"/>
+          <div class="flex flex-col flex-1">
+            <h3 class="font-bold text-lg text-white truncate">Trap Beat 2025</h3>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[#D4AF37] text-sm font-semibold">WAVAULT</span>
+              <svg width="16" height="16" fill="none"><circle cx="8" cy="8" r="7" stroke="#D4AF37" stroke-width="2"/><path d="M8 4v4l2 2" stroke="#D4AF37" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-4">
+            <button class="border border-[#D4AF37] text-white px-4 py-1 rounded-full font-bold hover:bg-[#D4AF37] hover:text-[#020B1C] transition">€19.99</button>
+            <button class="text-[#A0AAB5] hover:text-[#D4AF37]"><svg width="22" height="22" fill="none"><path d="M11 4v14M7 15l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          </div>
+        </div>
+        <!-- Repite la card para cada pista -->
+        <!-- ... -->
+      </div>
+    </section>
+  </main>
+</body>
+</html>

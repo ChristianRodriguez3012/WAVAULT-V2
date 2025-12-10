@@ -159,46 +159,51 @@ OUTPUT:
 
 ---
 
-## ��️ Tecnologías
+# WAVAULT V2 - v2.0
 
-- **Frontend:** HTML5, CSS3, Vanilla JavaScript
-- **Backend:** Node.js, Express.js
-- **IA:** Python, Gemini 2.0 Flash, Librosa
-- **BD:** SQLite
+## Descripción
+Sistema profesional para análisis automático de beats musicales, con pipeline IA Gemini, tabla de confianza explicable, validaciones estrictas y UI avanzada.
+
+## Cambios v2.0
+- Tabla de confianza generada por Gemini (API) y fallback local.
+- Explicación del pipeline y fuentes usadas en la UI.
+- Tags IA generados y priorizados por Gemini.
+- Validaciones BPM/Key/Mood mejoradas.
+- Documentación técnica y visual ampliada.
+- Versionado y mensajes claros en todos los archivos.
+
+## Instalación
+1. `cd WAVAULT`
+2. `npm install`
+3. Configura tu clave Gemini: `echo "GEMINI_API_KEY=tu_clave" > backend/.env`
+4. `npm start`
+5. Abre [http://localhost:3000/upload-beat](http://localhost:3000/upload-beat)
+
+## Uso
+- Sube tu beat (audio + portada)
+- El sistema analiza y muestra tabla de confianza con explicación
+- Edita metadatos y tags IA
+- Guarda y visualiza en tu dashboard
+
+## Documentos clave
+- `PROJECT_COMPLETION_REPORT.md`: Reporte final
+- `IMPLEMENTATION_SUMMARY.md`: Resumen técnico
+- `SYSTEM_OVERVIEW.md`: Arquitectura y validaciones
+- `DEMO_VISUAL.md`: Ejemplos visuales
+- `SETUP_AND_RUN.md`: Guía de instalación y testing
+
+## Tecnologías
+- Frontend: HTML5, CSS3, Vanilla JS
+- Backend: Node.js, Express.js, Python 3
+- IA: Gemini 2.0 Flash, Librosa, Essentia
+- BD: SQLite
+
+## Autor
+Christian Rodriguez
 
 ---
-
-## ✅ Características Implementadas
-
-- [x] Análisis automático (SI O SI)
-- [x] Tabla de confianza visual
-- [x] Validación de BPM (50-220)
-- [x] Validación de Key (notas musicales)
-- [x] Campos editables
-- [x] Tags removibles
-- [x] Generación de tags con IA
-- [x] Guardado en SQLite
-- [x] Estilos profesionales
-- [x] Responsive design
-
----
-
-## 📚 Archivos Clave
-
-| Archivo | Propósito |
-|---------|-----------|
-| `public/upload-beat-final.html` | Frontend + Modal + Tabla |
-| `backend/server.js` | Express API |
-| `backend/parse_filename_ai.py` | Extracción de metadata |
-| `backend/analyze_beat_ai.py` | Análisis de audio |
-
----
-
-## 🚀 Status
-
-**✅ LISTO PARA PRODUCCIÓN**
-
-Versión 1.0 - 2024
+Versión 2.0 - Diciembre 2025
+Listo para producción
 
 ---
 

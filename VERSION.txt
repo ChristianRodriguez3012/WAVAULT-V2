@@ -1,0 +1,5 @@
+2.0
+Diciembre 2025
+Commit: feat: versión 2.0 - tabla de confianza Gemini, explicación pipeline, mejoras IA y frontend
+Tag: v2.0
+Autor: Christian Rodriguez

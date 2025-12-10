@@ -1,200 +1,405 @@
+<!-- VISTA CLIENTE - BEATSTARS CLONE CON FUNCIONALIDAD COMPLETA -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Cliente - WAVAULT</title>
-  <base href="/" />
-  <link rel="stylesheet" href="../assets/css/style.css" />
-
-
+  <title>WAVAULT Cliente</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .burbuja {
-      background-color: red;
-      color: white;
-      font-weight: bold;
-      padding: 2px 7px;
-      border-radius: 50%;
-      font-size: 0.75em;
-      margin-left: 5px;
-      vertical-align: middle;
-    }
-
-    .beat-card {
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #fff;
-      box-shadow: 1px 1px 6px rgba(0,0,0,0.05);
-    }
-
-    .beat-card img {
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .beat-info {
-      padding: 10px;
-    }
-
-    .beat-info h3 {
-      margin: 0 0 5px;
-      color: #1a73e8;
-      cursor: pointer;
-    }
-
-    .beat-info .nombre-prod {
-      color: #1a73e8;
-      cursor: pointer;
-    }
-
-    .historial-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-
-    /* 🎧 Reproductor Global */
-    .player-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px;
-      background-color: #111;
-      color: white;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 999;
-    }
-
-    .player-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .player-info img {
-      width: 50px;
-      height: 50px;
-      border-radius: 4px;
-    }
-
-    .player-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .player-controls input[type="range"] {
-      height: 4px;
-    }
-
-    .player-timer {
-      font-size: 0.85em;
-    }
+    body { font-family: 'Inter', sans-serif; }
+    .gold-glow { box-shadow: 0 0 0 2px #D4AF37, 0 0 8px #D4AF3744; }
+    .track-card { transition: all 0.2s; }
+    .track-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px #D4AF3733; border-color: #D4AF37; }
+    .circle-filter { cursor: pointer; transition: all 0.2s; }
+    .circle-filter:hover { transform: scale(1.05); }
+    .circle-active { border: 2px solid #D4AF37; box-shadow: 0 0 12px #D4AF3788; }
+    .pill { border: 1px solid #3a3a3a; background: transparent; color: #999; border-radius: 9999px; padding: 0.4rem 0.9rem; margin-right: 0.5rem; font-size: 0.875rem; cursor: pointer; transition: all 0.2s; }
+    .pill:hover { border-color: #D4AF37; color: #D4AF37; }
+    .pill-active { border-color: #D4AF37; color: #D4AF37; background: #D4AF3711; }
+    .nav-link { transition: all 0.2s; }
+    .nav-active { color: #D4AF37 !important; }
+    .nav-link.nav-active:hover { color: #FAFAFA !important; }
+    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; bg: #1A1A1A; border-top: 1px solid #2a2a2a; padding: 10px; display: none; z: 40; }
+    .player-bar.active { display: flex; }
+    .cliente-section { display: none; }
+    .cliente-section.active { display: block; }
   </style>
-
-  <script>
-    window.usuario = JSON.parse(localStorage.getItem('usuarioActivo'));
-    if (!usuario || usuario.rol !== 'cliente') {
-      alert('Acceso denegado. Inicia sesión como cliente.');
-      window.location.href = '../login.html';
-    }
-  </script>
 </head>
-<body>
-  <header>
-    <h1>🎧 WAVAULT</h1>
-    <nav>
-      <a href="#" data-seccion="feed">Feed</a>
-      <a href="#" data-seccion="carrito">
-        Carrito <span id="carritoContador" class="burbuja">0</span>
-      </a>
-      <a href="#" data-seccion="perfil">Mi Perfil</a>
-      <a href="#" onclick="cerrarSesion()">Cerrar Sesión</a>
-    </nav>
-  </header>
-
-  <main>
-    <!-- ========== FEED ========== -->
-    <section id="feedSection" class="cliente-section">
-      <div class="search-bar">
-        <input type="text" id="buscarBeatsCliente" placeholder="Buscar beats..." />
-      </div>
-      <div id="beatsCliente" class="beat-feed"></div>
-    </section>
-
-    <!-- ========== CARRITO ========== -->
-    <section id="carritoSection" class="cliente-section" style="display:none;">
-      <h2>🛒 Carrito</h2>
-      <div id="carritoItems" class="carrito-list"></div>
-      <p><strong>Total:</strong> $<span id="carritoTotal">0</span></p>
-      <button onclick="pagar()">Pagar</button>
-      <button onclick="vaciarCarrito()">Vaciar carrito</button>
-    </section>
-
-    <!-- ========== PERFIL ========== -->
-    <section id="perfilSection" class="cliente-section" style="display:none;">
-      <h2>👤 Mi Perfil</h2>
-      <p><strong>Email:</strong> <span id="clienteEmail">-</span></p>
-      <h3>🧾 Historial de Compras</h3>
-      <div id="historialCompras" class="historial-grid"></div>
-    </section>
-  </main>
-
-  <!-- ✅ Reproductor Global -->
-  <div id="reproductorGlobal" class="player-bar" style="display: none;">
-    <div class="player-info">
-      <img id="playerCover" src="" alt="Cover" />
-      <div>
-        <h4 id="playerTitle">Título del Beat</h4>
-        <p id="playerProducer">Productor</p>
+<body class="bg-[#141414] text-[#FAFAFA] min-h-screen">
+  
+  <!-- HERO SECTION -->
+  <section class="relative bg-cover bg-center h-96" style="background-image: linear-gradient(rgba(20,20,20,0.7), rgba(20,20,20,0.9)), url('https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=1200');">
+    <div class="absolute inset-0 flex flex-col items-center justify-center px-4">
+      <h1 class="text-5xl font-bold mb-6 text-center">TU PRIMER HIT EMPIEZA AQUÍ</h1>
+      <div class="w-full max-w-2xl">
+        <div class="relative">
+          <input type="text" id="buscarBeatsCliente" placeholder="Busca beats, genres, productores..." class="w-full bg-[#FAFAFA] text-[#141414] rounded-full px-6 py-4 pr-32 text-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"/>
+          <button class="absolute right-2 top-1/2 -translate-y-1/2 bg-[#141414] text-[#FAFAFA] px-6 py-2 rounded-full font-semibold hover:bg-[#D4AF37] hover:text-[#141414] transition">Buscar</button>
+        </div>
       </div>
     </div>
-    <div class="player-controls">
-      <button id="btnPrev">◀◀</button>
-      <button id="playPauseBtn">⏵</button>
-      <button id="btnNext">▶▶</button>
-      <input type="range" id="progressBar" step="1" value="0" />
-      <input type="range" id="volumeControl" step="0.01" min="0" max="1" value="1" />
-      <span id="playerTimer" class="player-timer">0:00</span>
+  </section>
+
+  <!-- HEADER NAVEGACIÓN -->
+  <header class="sticky top-0 z-30 bg-[#1A1A1A] border-b border-[#2a2a2a]">
+    <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+      <div class="flex items-center gap-8">
+        <div class="flex items-center gap-3">
+          <img src="/assets/img/wavault-logo.svg" alt="WAVAULT" class="h-10" style="filter: brightness(0) saturate(100%) invert(64%) sepia(85%) saturate(450%) hue-rotate(10deg) brightness(95%) contrast(85%);"/>
+          <span class="text-3xl font-bold text-[#D4AF37] tracking-tight">WAVAULT</span>
+        </div>
+        <nav class="hidden md:flex gap-6">
+          <a href="#" onclick="mostrarSeccion(event, 'feed')" class="nav-link nav-active text-[#FAFAFA] hover:text-[#D4AF37] font-medium" data-seccion="feed">Tracks</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Colecciones</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Sound Kits</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Músicos</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">AI Models</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="hidden md:block text-[#999] hover:text-[#D4AF37]">🔔</button>
+        <button class="hidden md:block text-[#999] hover:text-[#D4AF37]">❤️ <span class="text-xs">5</span></button>
+        <button class="text-[#999] hover:text-[#D4AF37]" onclick="mostrarSeccion(event, 'perfil')">👤 Perfil</button>
+        <button class="relative bg-[#D4AF37] text-[#141414] px-5 py-2 rounded-full font-bold hover:bg-[#bfa12c] transition" onclick="mostrarSeccion(event, 'carrito')">
+          🛒 Carrito <span id="carritoContador" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">0</span>
+        </button>
+        <button class="text-[#999] hover:text-[#D4AF37]" onclick="cerrarSesion()">Cerrar</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    
+    <!-- SECCIÓN FEED -->
+    <section id="feedSection" class="cliente-section active">
+      <h2 class="text-2xl font-bold mb-6">Trending Beats</h2>
+      <div id="beatsCliente" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"></div>
+    </section>
+
+    <!-- SECCIÓN CARRITO -->
+    <section id="carritoSection" class="cliente-section">
+      <h2 class="text-2xl font-bold mb-6">🛒 Mi Carrito</h2>
+      <div id="carritoItems" class="bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg p-6"></div>
+      <div class="mt-6 bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4">Resumen del Pedido</h3>
+        <p style="margin-bottom: 12px;">Subtotal: <span id="carritoSubtotal" style="color: #D4AF37; font-weight: bold;">$0</span></p>
+        <p style="margin-bottom: 12px;">Total: <span id="carritoTotal" style="color: #D4AF37; font-weight: bold; font-size: 1.25rem;">$0</span></p>
+        <button class="bg-[#D4AF37] text-[#141414] px-6 py-2 rounded-full font-bold hover:bg-[#bfa12c] transition" onclick="pagar()">Procesar Pago</button>
+        <button class="bg-transparent border border-[#D4AF37] text-[#D4AF37] px-6 py-2 rounded-full font-bold hover:bg-[#D4AF37] hover:text-[#141414] transition ml-4" onclick="vaciarCarrito()">Limpiar Carrito</button>
+      </div>
+    </section>
+
+    <!-- SECCIÓN PERFIL -->
+    <section id="perfilSection" class="cliente-section">
+      <h2 class="text-2xl font-bold mb-6">👤 Mi Perfil</h2>
+      <p style="margin-bottom: 20px;">Email: <span id="clienteEmail" style="color: #D4AF37; font-weight: bold;">-</span></p>
+      <h3 class="text-xl font-bold mb-4">📦 Mis Compras</h3>
+      <div id="historialCompras" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+    </section>
+
+  </main>
+
+  <!-- REPRODUCTOR GLOBAL -->
+  <div id="reproductorGlobal" class="player-bar">
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+      <img id="playerCover" src="" alt="Cover" style="height: 50px; width: 50px; border-radius: 4px;">
+      <div>
+        <h4 id="playerTitle" style="margin: 0; color: #FAFAFA;">Título</h4>
+        <p id="playerProducer" style="margin: 0; color: #999; font-size: 12px;">Productor</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center;">
+      <button id="btnPrev" style="background: transparent; border: none; color: #D4AF37; cursor: pointer; font-size: 16px;">◀◀</button>
+      <button id="playPauseBtn" style="background: #D4AF37; color: #141414; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">⏵</button>
+      <button id="btnNext" style="background: transparent; border: none; color: #D4AF37; cursor: pointer; font-size: 16px;">▶▶</button>
+      <input type="range" id="progressBar" value="0" step="1" style="flex: 1; height: 4px; cursor: pointer;">
+      <span id="currentTime" style="font-size: 12px; color: #999;">0:00</span> / <span id="totalDuration" style="font-size: 12px; color: #999;">0:00</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <input type="range" id="volumeControl" min="0" max="1" step="0.01" value="1" style="width: 100px; height: 4px; cursor: pointer;">
     </div>
     <audio id="audioPlayer"></audio>
   </div>
 
-  <footer>
-    <p>&copy; 2025 WAVAULT</p>
-  </footer>
-
   <script src="../assets/js/client.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      if (window.usuario) {
-        document.getElementById("clienteEmail").textContent = usuario.email;
-      }
-
-      document.querySelectorAll("a[data-seccion]").forEach(link => {
-        link.addEventListener("click", function (e) {
-          e.preventDefault();
-          const seccion = this.dataset.seccion;
-          document.querySelectorAll(".cliente-section").forEach(s => s.style.display = "none");
-          const seccionActiva = document.getElementById(seccion + "Section");
-          if (seccionActiva) seccionActiva.style.display = "block";
-
-          if (seccion === "carrito" && typeof renderizarCarrito === "function") renderizarCarrito();
-          if (seccion === "perfil" && typeof renderizarHistorial === "function") renderizarHistorial();
-        });
+    function mostrarSeccion(event, seccion) {
+      if (event) event.preventDefault();
+      
+      // Ocultar todas las secciones
+      document.querySelectorAll('.cliente-section').forEach(s => s.classList.remove('active'));
+      document.getElementById(`${seccion}Section`).classList.add('active');
+      
+      // Actualizar nav links (solo el de tracks)
+      const navLinks = document.querySelectorAll('.nav-link');
+      navLinks.forEach(link => {
+        link.classList.remove('nav-active');
+        link.classList.remove('text-[#D4AF37]');
+        link.classList.add('text-[#999]');
       });
-    });
+      
+      if (seccion === 'feed') {
+        document.querySelector('[data-seccion="feed"]').classList.add('nav-active');
+        document.querySelector('[data-seccion="feed"]').classList.remove('text-[#999]');
+        document.querySelector('[data-seccion="feed"]').classList.add('text-[#FAFAFA]');
+      }
+      
+      if (seccion === 'carrito') renderizarCarrito();
+      if (seccion === 'perfil') renderizarHistorial();
+    }
 
     function cerrarSesion() {
       localStorage.removeItem('usuarioActivo');
       window.location.href = '../login.html';
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const usuario = JSON.parse(localStorage.getItem('usuarioActivo'));
+      if (!usuario || usuario.rol !== 'cliente') {
+        alert('Acceso denegado. Inicia sesión como cliente.');
+        window.location.href = '../login.html';
+      }
+      if (usuario && document.getElementById('clienteEmail')) {
+        document.getElementById('clienteEmail').textContent = usuario.email;
+      }
+      renderizarBeats();
+      actualizarContadorCarrito();
+    });
   </script>
+</body>
+</html>
+
+  
+  <!-- HERO SECTION -->
+  <section class="relative bg-cover bg-center h-96" style="background-image: linear-gradient(rgba(20,20,20,0.7), rgba(20,20,20,0.9)), url('https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=1200');">
+    <div class="absolute inset-0 flex flex-col items-center justify-center px-4">
+      <h1 class="text-5xl font-bold mb-6 text-center">TU PRIMER HIT EMPIEZA AQUÍ</h1>
+      <div class="w-full max-w-2xl">
+        <div class="relative">
+          <input type="text" placeholder="Busca beats, genres, productores..." class="w-full bg-[#FAFAFA] text-[#141414] rounded-full px-6 py-4 pr-32 text-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"/>
+          <button class="absolute right-2 top-1/2 -translate-y-1/2 bg-[#141414] text-[#FAFAFA] px-6 py-2 rounded-full font-semibold hover:bg-[#D4AF37] hover:text-[#141414] transition">Buscar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEADER NAVEGACIÓN -->
+  <header class="sticky top-0 z-30 bg-[#1A1A1A] border-b border-[#2a2a2a]">
+    <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+      <div class="flex items-center gap-8">
+        <div class="flex items-center gap-3">
+          <img src="/assets/img/wavault-logo.svg" alt="WAVAULT" class="h-10" style="filter: brightness(0) saturate(100%) invert(64%) sepia(85%) saturate(450%) hue-rotate(10deg) brightness(95%) contrast(85%);"/>
+          <span class="text-3xl font-bold text-[#D4AF37] tracking-tight">WAVAULT</span>
+        </div>
+        <nav class="hidden md:flex gap-6">
+          <a href="#" class="text-[#FAFAFA] hover:text-[#D4AF37] font-medium">Tracks</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Colecciones</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Sound Kits</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">Músicos</a>
+          <a href="#" class="text-[#999] hover:text-[#D4AF37]">AI Models</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="hidden md:block text-[#999] hover:text-[#D4AF37]">🔔</button>
+        <button class="hidden md:block text-[#999] hover:text-[#D4AF37]">❤️ <span class="text-xs">5</span></button>
+        <button class="relative bg-[#D4AF37] text-[#141414] px-5 py-2 rounded-full font-bold hover:bg-[#bfa12c] transition">
+          🛒 Carrito <span class="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">3</span>
+        </button>
+        <button class="text-[#999] hover:text-[#D4AF37]">Cerrar</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    
+    <!-- SECCIÓN TRENDING TRACKS -->
+    <section class="mb-10">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold">Trending tracks</h2>
+        <a href="#" class="text-[#D4AF37] hover:underline text-sm font-semibold">See more</a>
+      </div>
+
+      <!-- FILTROS CIRCULARES -->
+      <div class="flex gap-6 mb-8 overflow-x-auto pb-4">
+        <div class="flex flex-col items-center circle-filter circle-active">
+          <div class="w-16 h-16 flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#D4AF37] gold-glow">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4.5L6 21l1.5-7.5L2 9h7z"/></svg>
+          </div>
+          <span class="mt-2 text-xs text-[#D4AF37] font-bold">New & Trending</span>
+        </div>
+        <div class="flex flex-col items-center circle-filter">
+          <div class="w-16 h-16 flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#999]">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+          <span class="mt-2 text-xs text-[#999]">Top Charts</span>
+        </div>
+        <div class="flex flex-col items-center circle-filter">
+          <div class="w-16 h-16 flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#999]">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="14" cy="14" r="10"/><path d="M14 10v4l2 2"/></svg>
+          </div>
+          <span class="mt-2 text-xs text-[#999]">Exclusive Only</span>
+        </div>
+        <div class="flex flex-col items-center circle-filter">
+          <div class="w-16 h-16 flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#999]">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <span class="mt-2 text-xs text-[#999]">Free Downloads</span>
+        </div>
+        <div class="flex flex-col items-center circle-filter">
+          <div class="w-16 h-16 flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#999]">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="14" cy="14" r="10"/></svg>
+          </div>
+          <span class="mt-2 text-xs text-[#999]">Featured</span>
+        </div>
+      </div>
+
+      <!-- BARRA DE TAGS Y DROPDOWNS -->
+      <div class="flex flex-wrap items-center gap-2 mb-8">
+        <span class="pill pill-active">Trap</span>
+        <span class="pill">Drake</span>
+        <span class="pill">Guitar</span>
+        <span class="pill">Reggaeton</span>
+        <span class="pill">Afrobeat</span>
+        <span class="pill">Hip-Hop</span>
+        <span class="pill">Dark</span>
+        <div class="flex gap-2 ml-auto">
+          <button class="pill flex items-center gap-1">Género <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#999" stroke-width="2"/></svg></button>
+          <button class="pill flex items-center gap-1">Precio <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#999" stroke-width="2"/></svg></button>
+          <button class="pill flex items-center gap-1">BPM <svg width="12" height="12" fill="none"><path d="M3 5l3 3 3-3" stroke="#999" stroke-width="2"/></svg></button>
+        </div>
+      </div>
+
+      <!-- GRID DE BEATS -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        
+        <!-- CARD 1 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <div class="absolute top-2 right-2 bg-[#D4AF37] text-[#141414] text-xs font-bold px-2 py-1 rounded">NEW</div>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">CRUISIN</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">Decardo</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">$30</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- CARD 2 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">KONGRES</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">Sencds</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">$30</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- CARD 3 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">SIXPACK</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">GhostClubz</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">$33</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- CARD 4 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <div class="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">LIMITED</div>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">50 Beats For $50</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">Bob Lim</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">$49.99</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- CARD 5 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">200 Beats For $50</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">mrkk Cmb</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">$50</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Add to Cart</button>
+          </div>
+        </div>
+
+        <!-- CARD 6 -->
+        <div class="track-card bg-[#1A1A1A] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div class="relative">
+            <img src="https://via.placeholder.com/300" alt="Beat" class="w-full aspect-square object-cover"/>
+            <div class="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded">FREE</div>
+            <button class="absolute bottom-2 left-2 bg-[#141414]/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#D4AF37] hover:text-[#141414]">▶</button>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-[#FAFAFA] truncate mb-1">MURDER - 1/4</h3>
+            <p class="text-xs text-[#D4AF37] mb-3">Goateboy</p>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[#FAFAFA] font-bold text-lg">Free</span>
+              <button class="text-[#999] hover:text-[#D4AF37]">❤️</button>
+            </div>
+            <button class="w-full bg-[#D4AF37] text-[#141414] text-xs font-bold py-2 rounded-full hover:bg-[#bfa12c] transition">Download Free</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER LOGOS -->
+  <footer class="bg-[#1A1A1A] border-t border-[#2a2a2a] py-8">
+    <div class="max-w-7xl mx-auto px-6">
+      <p class="text-center text-[#999] text-sm mb-4">Trusted by:</p>
+      <div class="flex flex-wrap justify-center items-center gap-8 opacity-50 grayscale">
+        <div class="text-sm text-[#999]">Electronic Arts</div>
+        <div class="text-sm text-[#999]">RCA</div>
+        <div class="text-sm text-[#999]">300 ENT</div>
+        <div class="text-sm text-[#999]">EPIC</div>
+        <div class="text-sm text-[#999]">SONY MUSIC</div>
+        <div class="text-sm text-[#999]">WARNER</div>
+      </div>
+    </div>
+  </footer>
+
 </body>
 </html>
