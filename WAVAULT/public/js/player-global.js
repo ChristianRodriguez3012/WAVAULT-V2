@@ -10,7 +10,9 @@ class WavaultPlayer {
     this.audioElement = null;
     this.playlist = [];
     this.currentIndex = 0;
-    this.loopMode = 0; // 0: no loop, 1: loop all, 2: loop one
+    this.loopMode = 0; // 0: no loop, 1: loop one
+    this.shuffleMode = false;
+    this.shuffleIndices = []; // Para mantener el orden aleatorio
 
     // Inicializar cuando el DOM esté listo
     if (document.readyState === 'loading') {
@@ -29,6 +31,11 @@ class WavaultPlayer {
     // Obtener referencias a los elementos del player
     this.setupPlayerReferences();
 
+    // Inicializar estado visual de los botones
+    this.updatePlayButton();
+    this.updateLoopButton();
+    this.updateShuffleButton();
+
     // Cargar beat guardado en localStorage si existe
     this.loadSavedBeat();
 
@@ -44,23 +51,34 @@ class WavaultPlayer {
   }
 
   setupPlayerReferences() {
+    // Obtener el wrapper y luego buscar elementos dentro de él
+    const wrapper = document.querySelector('.player-wrapper');
+    
     this.elements = {
-      wrapper: document.querySelector('.player-wrapper'),
-      playPauseBtn: document.getElementById('playPauseBtn'),
-      prevBtn: document.getElementById('prevBtn'),
-      nextBtn: document.getElementById('nextBtn'),
-      loopBtn: document.getElementById('loopBtn'),
-      progressSlider: document.getElementById('progressSlider'),
-      currentTime: document.getElementById('currentTime'),
-      duration: document.getElementById('duration'),
-      volumeSlider: document.getElementById('volumeSlider'),
-      volumeBtn: document.getElementById('volumeBtn'),
-      playerTitle: document.getElementById('playerTitle'),
-      playerArtist: document.getElementById('playerArtist'),
-      playerMeta: document.getElementById('playerMeta'),
-      playerCover: document.getElementById('playerCover'),
-      progressFill: document.getElementById('progressFill')
+      wrapper: wrapper,
+      playPauseBtn: wrapper?.querySelector('#playPauseBtn'),
+      prevBtn: wrapper?.querySelector('#prevBtn'),
+      nextBtn: wrapper?.querySelector('#nextBtn'),
+      loopBtn: wrapper?.querySelector('#loopBtn'),
+      playlistBtn: wrapper?.querySelector('#playlistBtn'),
+      shuffleBtn: wrapper?.querySelector('#shuffleBtn'),
+      progressSlider: wrapper?.querySelector('#progressSlider'),
+      currentTime: wrapper?.querySelector('#currentTime'),
+      duration: wrapper?.querySelector('#duration'),
+      volumeSlider: wrapper?.querySelector('#volumeSlider'),
+      volumeBtn: wrapper?.querySelector('#volumeBtn'),
+      playerTitle: wrapper?.querySelector('#playerTitle'),
+      playerArtist: wrapper?.querySelector('#playerArtist'),
+      playerMeta: wrapper?.querySelector('#playerMeta'),
+      playerCover: wrapper?.querySelector('#playerCover'),
+      progressFill: wrapper?.querySelector('#progressFill')
     };
+    
+    console.log('🔍 setupPlayerReferences - Elementos encontrados en .player-wrapper:');
+    Object.keys(this.elements).forEach(key => {
+      const found = this.elements[key] ? '✅' : '❌';
+      console.log(`  ${found} ${key}:`, this.elements[key]);
+    });
   }
 
   loadSavedBeat() {
@@ -76,6 +94,8 @@ class WavaultPlayer {
   }
 
   setBeat(beat, addToPlaylist = true) {
+    console.log('🎯 setBeat() llamado con:', beat);
+    
     this.currentBeat = beat;
     localStorage.setItem('wavaultCurrentBeat', JSON.stringify(beat));
 
@@ -86,25 +106,48 @@ class WavaultPlayer {
     }
 
     // Actualizar interfaz
-    if (this.elements.playerTitle) this.elements.playerTitle.textContent = beat.nombre || 'Sin título';
-    if (this.elements.playerArtist) this.elements.playerArtist.textContent = beat.productor || 'Productor desconocido';
+    console.log('📝 Actualizando interfaz del player...');
+    console.log('  playerTitle elemento:', this.elements.playerTitle);
+    console.log('  beat.nombre:', beat.nombre);
+    
+    if (this.elements.playerTitle) {
+      this.elements.playerTitle.textContent = beat.nombre || 'Sin título';
+      console.log('✅ playerTitle actualizado a:', this.elements.playerTitle.textContent);
+    } else {
+      console.warn('⚠️ playerTitle no encontrado');
+    }
+    
+    if (this.elements.playerArtist) {
+      this.elements.playerArtist.textContent = beat.productor || 'Productor desconocido';
+      console.log('✅ playerArtist actualizado a:', this.elements.playerArtist.textContent);
+    } else {
+      console.warn('⚠️ playerArtist no encontrado');
+    }
+    
     if (this.elements.playerMeta) {
       const bpm = beat.bpm || '-';
       const key = beat.key || '-';
       this.elements.playerMeta.textContent = `${bpm} BPM • ${key} KEY`;
+      console.log('✅ playerMeta actualizado a:', this.elements.playerMeta.textContent);
     }
+    
     if (this.elements.playerCover) {
       this.elements.playerCover.src = beat.portada || '/assets/img/placeholder.jpg';
+      console.log('✅ playerCover actualizado a:', this.elements.playerCover.src);
     }
 
     // Configurar audio
     if (this.audioElement) {
       this.audioElement.src = beat.archivo || '';
+      console.log('✅ Audio configurado:', beat.archivo);
       this.resetProgress();
     }
 
-    // Reproducir automáticamente
-    this.play();
+    // Reproducir automáticamente (con manejo de error para CORS/autoplay)
+    console.log('🎵 Intentando reproducir...');
+    this.play().catch(error => {
+      console.warn('⚠️ Autoplay bloqueado por navegador, requiere interacción:', error);
+    });
   }
 
   formatTime(seconds) {
@@ -115,18 +158,40 @@ class WavaultPlayer {
   }
 
   updateProgress() {
-    if (!this.audioElement) return;
+    if (!this.audioElement) {
+      console.warn('⚠️ updateProgress: audioElement no existe');
+      return;
+    }
 
     const percent = (this.audioElement.currentTime / this.audioElement.duration) * 100 || 0;
     
+    console.log('📈 updateProgress:', {
+      currentTime: this.audioElement.currentTime,
+      duration: this.audioElement.duration,
+      percent: percent,
+      progressFill: this.elements.progressFill,
+      progressSlider: this.elements.progressSlider
+    });
+    
     if (this.elements.progressFill) {
       this.elements.progressFill.style.width = percent + '%';
+      console.log('  ✅ progressFill.width =', percent + '%');
+    } else {
+      console.warn('  ❌ progressFill no existe');
     }
+    
     if (this.elements.progressSlider) {
       this.elements.progressSlider.value = percent;
+      console.log('  ✅ progressSlider.value =', percent);
+    } else {
+      console.warn('  ❌ progressSlider no existe');
     }
+    
     if (this.elements.currentTime) {
       this.elements.currentTime.textContent = this.formatTime(this.audioElement.currentTime);
+      console.log('  ✅ currentTime.textContent =', this.elements.currentTime.textContent);
+    } else {
+      console.warn('  ❌ currentTime no existe');
     }
   }
 
@@ -138,11 +203,32 @@ class WavaultPlayer {
   }
 
   play() {
-    if (!this.audioElement || !this.audioElement.src) return;
+    if (!this.audioElement || !this.audioElement.src) {
+      console.warn('⚠️ No audio element or src configured');
+      return Promise.reject('No audio source');
+    }
     
-    this.audioElement.play().catch(e => console.error('Error playing audio:', e));
-    this.isPlaying = true;
-    this.updatePlayButton();
+    console.log('🎵 Play called, audio src:', this.audioElement.src);
+    const playPromise = this.audioElement.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('✅ Audio playing successfully');
+          this.isPlaying = true;
+          this.updatePlayButton();
+        })
+        .catch(error => {
+          console.error('❌ Play error:', error);
+          this.isPlaying = false;
+          this.updatePlayButton();
+        });
+    } else {
+      this.isPlaying = true;
+      this.updatePlayButton();
+    }
+    
+    return playPromise || Promise.resolve();
   }
 
   pause() {
@@ -162,12 +248,24 @@ class WavaultPlayer {
   }
 
   updatePlayButton() {
-    if (!this.elements.playPauseBtn) return;
-    
-    const icon = this.elements.playPauseBtn.querySelector('i');
-    if (icon) {
-      icon.className = this.isPlaying ? 'fas fa-pause' : 'fas fa-play';
+    // Buscar específicamente dentro del player-wrapper para evitar duplicados
+    const wrapper = document.querySelector('.player-wrapper');
+    if (!wrapper) {
+      console.warn('⚠️ updatePlayButton: .player-wrapper no encontrado');
+      return;
     }
+    
+    const btn = wrapper.querySelector('.play-pause-btn');
+    if (!btn) {
+      console.warn('⚠️ updatePlayButton: .play-pause-btn no encontrado');
+      return;
+    }
+    
+    // Recrear el contenido del botón con el icono correcto
+    const iconClass = this.isPlaying ? 'fas fa-pause' : 'fas fa-play';
+    btn.innerHTML = `<i class="${iconClass}"></i>`;
+    
+    console.log(`🔘 Botón actualizado: ${this.isPlaying ? '⏸️ PAUSA' : '▶️ PLAY'}`);
   }
 
   seekTo(percent) {
@@ -197,40 +295,149 @@ class WavaultPlayer {
   }
 
   toggleLoop() {
-    this.loopMode = (this.loopMode + 1) % 3;
+    const oldMode = this.loopMode;
+    this.loopMode = this.loopMode === 0 ? 1 : 0; // Alternar entre OFF (0) y ONE (1)
+    console.log(`🔄 toggleLoop: ${oldMode} → ${this.loopMode}`);
     this.updateLoopButton();
     return this.loopMode;
   }
 
   updateLoopButton() {
-    if (!this.elements.loopBtn) return;
+    console.log('🔄 updateLoopButton llamado, loopMode:', this.loopMode);
     
-    const icon = this.elements.loopBtn.querySelector('i');
-    if (!icon) return;
+    const wrapper = document.querySelector('.player-wrapper');
+    if (!wrapper) {
+      console.warn('⚠️ updateLoopButton: wrapper no encontrado');
+      return;
+    }
+    
+    const loopBtn = wrapper.querySelector('#loopBtn');
+    if (!loopBtn) {
+      console.warn('⚠️ updateLoopButton: loopBtn no encontrado');
+      return;
+    }
+    
+    console.log('✅ loopBtn encontrado:', loopBtn);
 
-    this.elements.loopBtn.classList.remove('active');
+    // Limpiar estilos previos
+    loopBtn.classList.remove('active');
+    loopBtn.style.opacity = '';
+    loopBtn.style.color = '';
     
-    switch (this.loopMode) {
-      case 1: // Loop all
-        this.elements.loopBtn.classList.add('active');
-        break;
-      case 2: // Loop one
-        if (icon.parentElement) {
-          icon.parentElement.textContent = '';
-          const span = document.createElement('span');
-          span.innerHTML = '<i class="fas fa-redo"></i><span style="font-size: 0.7rem; margin-left: -0.4rem;">1</span>';
-          icon.parentElement.innerHTML = span.innerHTML;
+    if (this.loopMode === 0) {
+      // OFF - apagado
+      loopBtn.style.opacity = '0.5';
+      loopBtn.innerHTML = '<i class="fas fa-redo"></i>';
+      console.log('🔘 Loop: OFF (apagado)');
+    } else {
+      // REPEAT ONE - brillante rosa
+      loopBtn.classList.add('active');
+      loopBtn.style.opacity = '1';
+      loopBtn.style.color = '#ec4899';
+      loopBtn.innerHTML = '<i class="fas fa-redo"></i><span style="font-size: 0.7rem; margin-left: -0.4rem;">1</span>';
+      console.log('🔘 Loop: REPEAT ONE (rosa, repite infinitamente)');
+    }
+  }
+
+  // Shuffle deshabilitado
+  toggleShuffle() {
+    this.shuffleMode = false;
+    return this.shuffleMode;
+  }
+
+  updateShuffleButton() {
+    return;
+  }
+
+  nextTrackShuffled() {
+    return this.nextTrack();
+  }
+
+  prevTrackShuffled() {
+    return this.prevTrack();
+  }
+
+  togglePlaylist() { return; }
+
+  closePlaylist() { return; }
+
+  renderPlaylist() {
+    const container = document.getElementById('playlistTracks');
+    if (!container) return;
+    
+    if (this.playlist.length === 0) {
+      container.innerHTML = `
+        <div class="playlist-empty">
+          <div class="playlist-empty-icon">
+            <i class="fas fa-music"></i>
+          </div>
+          <p>Playlist vacía. Añade beats desde la página principal.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = this.playlist.map((beat, index) => {
+      const isActive = index === this.currentIndex ? 'active' : '';
+      return `
+        <div class="playlist-track ${isActive}" data-index="${index}">
+          <img src="${beat.portada || '/assets/img/placeholder.jpg'}" alt="Cover" class="playlist-track-cover">
+          <div class="playlist-track-info">
+            <p class="playlist-track-title">${beat.nombre || 'Sin título'}</p>
+            <p class="playlist-track-artist">${beat.productor || 'Productor desconocido'}</p>
+          </div>
+          <button class="playlist-track-remove" data-index="${index}">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    // Agregar listeners
+    container.querySelectorAll('.playlist-track').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (!e.target.closest('.playlist-track-remove')) {
+          const index = parseInt(el.dataset.index);
+          this.currentIndex = index;
+          this.setBeat(this.playlist[index], false);
+          this.renderPlaylist();
         }
-        this.elements.loopBtn.classList.add('active');
-        break;
-      default: // No loop
-        icon.className = 'fas fa-redo';
-        break;
+      });
+    });
+
+    container.querySelectorAll('.playlist-track-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const index = parseInt(btn.dataset.index);
+        this.removeFromPlaylist(index);
+      });
+    });
+  }
+
+  removeFromPlaylist(index) {
+    if (index < 0 || index >= this.playlist.length) return;
+    
+    this.playlist.splice(index, 1);
+    
+    // Ajustar índice actual si es necesario
+    if (this.currentIndex >= this.playlist.length) {
+      this.currentIndex = Math.max(0, this.playlist.length - 1);
+    }
+    
+    this.renderPlaylist();
+  }
+
+  addToPlaylist(beat) {
+    if (!this.playlist.find(b => b.id === beat.id)) {
+      this.playlist.push(beat);
+      console.log('✅ Beat añadido a la playlist:', beat.nombre);
     }
   }
 
   setupEventListeners() {
     if (!this.audioElement) return;
+    
+    console.log('🔧 setupEventListeners - Registrando event listeners...');
 
     // Audio events
     this.audioElement.addEventListener('loadedmetadata', () => {
@@ -240,23 +447,34 @@ class WavaultPlayer {
     });
 
     this.audioElement.addEventListener('timeupdate', () => {
+      console.log('📊 timeupdate: currentTime =', this.audioElement.currentTime);
       this.updateProgress();
     });
 
     this.audioElement.addEventListener('ended', () => {
-      if (this.loopMode === 2) {
-        // Loop one
+      if (this.loopMode === 1) {
+        // Loop one - repetir infinitamente el mismo beat
         this.audioElement.currentTime = 0;
         this.play();
-      } else if (this.loopMode === 1) {
-        // Loop all
-        this.nextTrack();
       } else {
-        // No loop
+        // No loop - detener
         this.isPlaying = false;
         this.updatePlayButton();
         this.resetProgress();
       }
+    });
+
+    // Eventos de play/pause del elemento audio
+    this.audioElement.addEventListener('play', () => {
+      this.isPlaying = true;
+      this.updatePlayButton();
+      console.log('🎵 Audio evento play - ícono actualizado a pausa');
+    });
+
+    this.audioElement.addEventListener('pause', () => {
+      this.isPlaying = false;
+      this.updatePlayButton();
+      console.log('⏸️ Audio evento pause - ícono actualizado a play');
     });
 
     // Player controls
@@ -265,16 +483,30 @@ class WavaultPlayer {
     }
 
     if (this.elements.prevBtn) {
-      this.elements.prevBtn.addEventListener('click', () => this.prevTrack());
+      this.elements.prevBtn.addEventListener('click', () => {
+        this.prevTrack();
+      });
     }
 
     if (this.elements.nextBtn) {
-      this.elements.nextBtn.addEventListener('click', () => this.nextTrack());
+      this.elements.nextBtn.addEventListener('click', () => {
+        this.nextTrack();
+      });
     }
 
     if (this.elements.loopBtn) {
-      this.elements.loopBtn.addEventListener('click', () => this.toggleLoop());
+      this.elements.loopBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🖱️ Click en loopBtn detectado');
+        this.toggleLoop();
+      });
+      console.log('✅ Event listener de loop registrado');
+    } else {
+      console.warn('⚠️ loopBtn no encontrado, no se puede registrar listener');
     }
+
+    // Shuffle y playlist deshabilitados
 
     if (this.elements.progressSlider) {
       this.elements.progressSlider.addEventListener('input', (e) => {
@@ -292,6 +524,8 @@ class WavaultPlayer {
     if (this.elements.volumeSlider) {
       this.setVolume(this.elements.volumeSlider.value);
     }
+
+    // Playlist modal deshabilitada
   }
 
   /**
@@ -309,9 +543,7 @@ class WavaultPlayer {
     if (!window.wavaultPlayer) {
       window.wavaultPlayer = new WavaultPlayer();
     }
-    if (!window.wavaultPlayer.playlist.find(b => b.id === beat.id)) {
-      window.wavaultPlayer.playlist.push(beat);
-    }
+    window.wavaultPlayer.addToPlaylist(beat);
   }
 }
 
