@@ -744,7 +744,7 @@ const server = app.listen(port, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${port}`);
 });
 
-// ⏱️ Incrementar timeout para análisis largos con IA (3 minutos)
-server.timeout = 180000; // 180 segundos = 3 minutos
-server.keepAliveTimeout = 185000; // 5 segundos más que timeout
-server.headersTimeout = 186000; // 1 segundo más que keepAliveTimeout
+// ⏱️ Timeouts ajustados para mejor UX (120 segundos)
+server.timeout = 120000; // 120 segundos
+server.keepAliveTimeout = 125000; // 5 segundos más que timeout
+server.headersTimeout = 126000; // 1 segundo más que keepAliveTimeout

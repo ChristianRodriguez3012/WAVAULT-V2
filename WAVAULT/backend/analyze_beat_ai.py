@@ -83,13 +83,8 @@ if len(ACTIVE_API_KEYS) > 1:
 
 # 💾 CACHÉ SIMPLE DE ARTISTAS (para reducir requests a Gemini)
 # Estructura: {"artist_name": {"genre": "...", "subgenres": [...], "style": "...", "tags_example": [...]}}
-ARTIST_CACHE = {
-    "Kendrick Lamar": {"genre": "Hip-Hop/Rap", "subgenres": ["Conscious Hip-Hop", "Rage Trap"], "style": "Dark, layered, introspective, west coast", "tags_example": ["Dark", "Rage", "Conscious", "Street"]},
-    "Travis Scott": {"genre": "Hip-Hop/Trap", "subgenres": ["Psychedelic Trap", "Melodic Trap"], "style": "Atmospheric, spacey, hypnotic, houston", "tags_example": ["Atmospheric", "Spacey", "Hypnotic", "Psychedelic"]},
-    "The Weeknd": {"genre": "R&B/Trap", "subgenres": ["R&B Trap", "Synthwave"], "style": "Atmospheric, melancholic, emotional, synth-driven", "tags_example": ["Emotional", "Melancholic", "Synth", "Dark"]},
-    "Drake": {"genre": "Hip-Hop/Rap", "subgenres": ["Melodic Rap", "Trap"], "style": "Smooth, melodic, introspective, toronto", "tags_example": ["Smooth", "Melodic", "Introspective", "Chill"]},
-    "Future": {"genre": "Hip-Hop/Trap", "subgenres": ["Trap", "Rap"], "style": "Hard, aggressive, future-focused, atlanta", "tags_example": ["Aggressive", "Hard", "Futuristic", "Bass"]},
-}
+# ⚠️ CACHÉ DESACTIVADO - Cada consulta usa conocimiento fresco de Groq
+# No guardamos respuestas previas para evitar propagación de errores
 
 # 🏥 HEALTH CHECK CACHE: Registra qué keys están funcionales
 # Estructura: {"key_index": {"status": "ok"/"bad", "last_check": timestamp, "error_count": int}}
@@ -273,7 +268,7 @@ def call_groq_with_json(prompt, model_name=None):
             messages=[
                 {
                     "role": "system",
-                    "content": "Eres un asistente experto. Analiza la información y retorna SOLO JSON válido. Sin texto extra."
+                    "content": "Eres un experto en música. Analiza CADA consulta de forma INDEPENDIENTE usando tu conocimiento actual. NO uses información de consultas anteriores. Retorna SOLO JSON válido sin texto extra."
                 },
                 {
                     "role": "user",
@@ -282,7 +277,7 @@ def call_groq_with_json(prompt, model_name=None):
             ],
             model=model_name,
             response_format={"type": "json_object"},
-            temperature=0.0
+            temperature=0.3  # Variabilidad controlada para respuestas naturales
         )
         # Log de verificación Groq
         try:
@@ -1844,20 +1839,15 @@ def should_use_web_search(file_metadata, filename):
     if any(term in filename.lower() for term in generic_terms) and not song:
         return False
     
-    # 4. Artista ya está en caché (ya sabemos su estilo)
-    if artist in ARTIST_CACHE:
-        print(f"💾 Artista '{artist}' en caché, usando flash-lite sin búsqueda", file=sys.stderr)
-        return False
-    
     # SÍ usar búsqueda web si:
     # 1. Hay artista específico Y canción mencionada (validar longitud mínima)
     if artist and song and len(artist) > 3 and len(song) > 5:
         print(f"🌐 Artista '{artist}' + canción '{song}' detectados, usando búsqueda web", file=sys.stderr)
         return True
     
-    # 2. Hay artista nuevo (no en caché) que parece legítimo
+    # 2. Hay artista que parece legítimo
     if artist and len(artist) > 3:
-        print(f"🔍 Artista nuevo '{artist}', usando búsqueda web para aprender", file=sys.stderr)
+        print(f"🔍 Artista '{artist}' detectado, usando búsqueda web", file=sys.stderr)
         return True
     
     return False
@@ -2432,54 +2422,15 @@ def query_gemini_with_full_context(filename, parsed_data, audio_analysis):
     Total: 20-30 tags finales
     """
     artist_raw = parsed_data.get('reference_artist') or 'Unknown'
-    
+
     # 🔍 DETECTAR MÚLTIPLES ARTISTAS (Travis Scott x Kanye, Drake feat The Weeknd, etc.)
     # Separadores comunes: x, X, feat, feat., ft, ft., &, and
     artists_list = re.split(r'\s+(?:x|X|feat\.?|ft\.?|&|and)\s+', artist_raw)
     artists_list = [a.strip() for a in artists_list if a.strip()]
-    
+    artists_mentioned = ', '.join(artists_list) if artists_list else 'Unknown'
+
     print(f"🎤 Artistas detectados: {artists_list}", file=sys.stderr)
-    
-    # 💾 VERIFICAR SI TODOS LOS ARTISTAS ESTÁN EN CACHÉ
-    all_in_cache = all(artist in ARTIST_CACHE for artist in artists_list)
-    
-    if all_in_cache and len(artists_list) > 0:
-        print(f"💾 Caché hit completo para: {', '.join(artists_list)}", file=sys.stderr)
-        
-        # COMBINAR INFO DE MÚLTIPLES ARTISTAS
-        combined_genres = []
-        combined_subgenres = []
-        combined_styles = []
-        combined_tags = []
-        
-        for artist in artists_list:
-            cached = ARTIST_CACHE[artist]
-            combined_genres.append(cached['genre'])
-            combined_subgenres.extend(cached['subgenres'])
-            combined_styles.append(cached['style'])
-            combined_tags.extend(cached['tags_example'][:4])  # Max 4 tags por artista
-        
-        # Deduplicate
-        combined_subgenres = list(set(combined_subgenres))
-        combined_tags = list(set(combined_tags))[:8]  # Max 8 tags totales
-        
-        return {
-            "key": parsed_data.get('key') or audio_analysis.get('suggested_key'),
-            "key_confidence": parsed_data.get('key_confidence', 70),
-            "key_validated": True,
-            "artist_known": True,
-            "artist_info": {
-                "genre": ' + '.join(set(combined_genres)),  # "Hip-Hop + R&B"
-                "subgenres": combined_subgenres,
-                "style": ' + '.join(combined_styles)  # "Dark, aggressive + Smooth, melodic"
-            },
-            "mood": "Dark" if any("dark" in s.lower() or "melancholic" in s.lower() for s in combined_styles) else "Energetic",
-            "type": parsed_data.get('beat_type') or "Beat",
-            "genre": combined_genres[0].split('/')[0],  # Primer género del primer artista
-            "subgenres": combined_subgenres,
-            "tags": combined_tags,
-            "description": f"Blend of {' and '.join(artists_list)} styles. {combined_styles[0] if combined_styles else 'Versatile'} production perfect for collaborative tracks."
-        }
+    print(f"🔄 Groq consultará con conocimiento fresco (sin caché)", file=sys.stderr)
     
     if not GEMINI_API_KEY or GEMINI_API_KEY in ['empty', 'tu_api_key_aqui']:
         return {
@@ -2503,50 +2454,98 @@ def query_gemini_with_full_context(filename, parsed_data, audio_analysis):
             parsed_data.get('key') or audio_analysis.get('suggested_key')
         )
         
-        prompt = f"""Eres un experto en música urbana latina, trap, reggaeton, hip-hop y géneros contemporáneos.
+        prompt = f"""Eres un experto en TODOS los géneros musicales: hip-hop, trap, R&B, pop, reggaeton, trap latino, drill, etc.
 
 📁 BEAT ANALYSIS REQUEST:
-- Filename: {parsed_data.get('beat_name')}
-- Reference Artist: {parsed_data.get('reference_artist') or 'Unknown'}
+    - Filename: {parsed_data.get('beat_name')}
+    - Reference Artist(s): {artists_mentioned}
 - BPM: {parsed_data.get('bpm')}
 - Key: {parsed_data.get('key')}
 - Type: {parsed_data.get('beat_type') or 'N/A'}
 
-🎯 TAREA CRÍTICA:
-1. 🎤 IDENTIFICA AL ARTISTA: Si reconoces al artista, usa tu CONOCIMIENTO REAL sobre:
-   - Su GÉNERO REAL (ejemplo: Anuel AA = Trap Latino/Reggaeton, NO Pop/R&B)
-   - Subgéneros específicos que hace
-   - Estilo de producción característico (808s, dembow, melodic, etc)
-   - Región/país de origen
-   - Movimiento musical al que pertenece (Real Hasta la Muerte, OVO Sound, Cactus Jack, etc)
+    ⚠️ INSTRUCCIONES CRÍTICAS (OBLIGATORIAS):
+    1) Analiza ÚNICAMENTE los artistas mencionados: {artists_mentioned}
+       - SI conoces alguno → usa tu CONOCIMIENTO REAL sobre cada uno (género, subgéneros, país/ciudad, estilo, sello/movimiento)
+       - SI NO conoces alguno → marca claramente "artist_known": false para ese artista y NO inventes sustitutos
+    2) NO reemplaces ni agregues artistas diferentes (ej: si dice "Franky Style", NO digas "J Balvin")
+    3) NO uses BPM/Key para adivinar un artista distinto
+    4) Retorna SOLO JSON válido, sin markdown, sin texto extra
 
-2. 🔍 VALIDA LA KEY: Verifica si {parsed_data.get('key') or audio_analysis.get('suggested_key')} es correcta
-   (prioridad: filename > análisis de audio)
-
-3. 🏷️ GENERA 10-15 TAGS INTELIGENTES:
-   ✅ OBLIGATORIOS (si aplican):
-      - Nombre del artista (ej: "Anuel AA", "Bad Bunny")
-      - "Artist Type" o "Artist Style"
-      - GÉNERO REAL del artista (usa tu conocimiento, NO adivines por BPM)
-      - Subgénero(s) que hace el artista
-      - Movimiento/label del artista (ej: "Real Hasta la Muerte", "Rimas Entertainment")
-      - País/región (ej: "Puerto Rico", "Colombia", "Argentina")
+🎯 TAREA:
+1. 🎤 IDENTIFICA AL ARTISTA ESPECÍFICO MENCIONADO:
    
-   ✅ ADICIONALES (basados en conocimiento):
-      - Características de producción del artista (808s, dembow, drill, melodic, etc)
-      - Mood/vibe del artista (dark, aggressive, melodic, romantic, etc)
-      - Colaboradores típicos si hay múltiples artistas
-      - Uso/contexto (Freestyle, Vocal Ready, Club, Street, etc)
+   EJEMPLOS DE ARTISTAS Y SUS GÉNEROS REALES:
+   - Kanye West = Hip-Hop/Rap (Chicago, USA)
+   - Drake = Hip-Hop/R&B (Toronto, Canada)
+   - Travis Scott = Hip-Hop/Trap (Houston, USA)
+   - Bryson Tiller = R&B/Trap Soul (Louisville, USA)
+   - Bad Bunny = Trap Latino/Reggaeton (Puerto Rico)
+   - Anuel AA = Trap Latino (Puerto Rico)
+   - Feid = Reggaeton/Urban (Colombia)
+   - Cro = Hip-Hop/Rap (Alemania)
+   - Franky Style = Hip-Hop/Rap/Reggaeton (Lituania)
    
-   ❌ NO INCLUYAS: BPM, Key, "Type Beat" (se agregan automáticamente)
+   ⚠️ REGLA DE ORO:
+   - Si el artista es americano/europeo → Hip-Hop, Trap, R&B, Pop, Drill
+   - Si el artista es latino (Puerto Rico, Colombia, etc.) → Trap Latino, Reggaeton
+   - Si NO conoces al artista → Marca artist_known=false, género="Unknown", NO inventes
 
-4. 📝 DESCRIPCIÓN BREVE (2-3 líneas):
-   - Menciona el estilo característico del artista
-   - Contexto del beat
-   - Para qué tipo de flow/letra es ideal
+2. 🔍 VALIDA LA KEY: {parsed_data.get('key') or audio_analysis.get('suggested_key')}
 
-EJEMPLO REAL:
-Si el artista es "Anuel AA":
+3. 🏷️ TAGS CONTUNDENTES Y RELEVANTES:
+    - Devuelve preferentemente entre 12 y 15 tags SOLO si son claramente relevantes.
+    - Si no hay suficientes tags de calidad, devuelve menos (NO rellenes con genéricos).
+    ✅ SI CONOCES AL ARTISTA:
+        - Nombre del artista mencionado
+        - "Artist Type Beat" o "Artist Style" (solo con el artista correcto)
+        - Género REAL del artista
+        - Subgéneros específicos y micro-escenas
+        - País/ciudad de origen o movimiento/label
+        - Rasgos de producción distintivos (808s heavy, drum bounce, autotune, sample soul)
+        - Idioma/registro (español, inglés; callejero, melódico)
+    ❌ SI NO CONOCES AL ARTISTA:
+        - Incluye solo el nombre mencionado
+        - Género "Unknown" o técnicos mínimos; NO inventes sustitutos
+    🚫 PROHIBIDOS (no incluir): "Music", "Audio", "Beat", "Type Beat" (sin artista), "Instrumental" (genérico), "Unknown", "N/A", "Track", "Song", "Style" (sin artista), "Urban" (solo si no tiene calificador), adjetivos vacíos como "Medium", "Smooth", "Generic".
+
+4. 📝 DESCRIPCIÓN:
+   - SI conoces al artista: menciona SU estilo característico
+   - SI NO lo conoces: descripción genérica basada en características técnicas
+
+📏 FORMATO JSON OBLIGATORIO (ejemplo, mantén estas claves):
+{
+  "key": "X Minor/Major",
+  "key_confidence": 0-100,
+  "key_validated": true/false,
+  "artist_known": true/false,
+  "artist_info": {"genre":"...", "subgenres":["..."], "style":"...", "origin":"pais/ciudad", "label":"..."},
+  "mood": "...",
+  "type": "{parsed_type}",
+  "genre": "...",
+  "subgenres": ["..."],
+  "tags": ["..."],
+  "description": "...",
+  "confidence": {"artist_identification": 0-100, "genre_assignment": 0-100, "tags_quality": 0-100}
+}
+
+EJEMPLO CORRECTO - Artista Conocido (Cro):
+- artist_known: true
+- Genre: "Hip-Hop" 
+- Subgenres: ["Rap", "German Hip-Hop"]
+- Tags: ["Cro", "Cro Type Beat", "Hip-Hop", "German Rap", "Alemania", "Rap Consciente"]
+- Description: "Estilo de Cro con elementos de hip-hop alemán consciente..."
+
+EJEMPLO CORRECTO - Artista Desconocido:
+- artist_known: false
+- Genre: "Unknown"
+- Tags: ["Artist Name", "Type Beat", "Hip-Hop Style", "Urban"]
+- Description: "Beat con características urbanas. Producción versátil para flows diversos."
+
+EJEMPLO INCORRECTO ❌:
+- Filename dice "Franky Style" pero respondes sobre "J Balvin" → MAL
+- NO conoces al artista pero inventas uno similar → MAL
+
+📋 RETORNA JSON:
 - Genre: "Trap Latino" (NO "Pop")
 - Subgenres: ["Reggaeton", "Latin Trap", "Urban Latino"]
 - Tags: ["Anuel AA", "Anuel AA Type", "Real Hasta la Muerte", "Puerto Rico", "Trap Latino", "Street", "Dark", "Aggressive", "808s Heavy", "Latin Urban", "Dembow Elements"]
@@ -2563,7 +2562,7 @@ Si el artista es "Anuel AA":
   "type": "{parsed_data.get('beat_type') or 'Beat'}",
   "genre": "GÉNERO PRINCIPAL REAL DEL ARTISTA",
   "subgenres": ["subgenre1", "subgenre2"],
-  "tags": ["tag1", "tag2", ..., "tag10-15"],
+    "tags": ["tag1", "tag2", ..., "tag12-15"],
   "description": "Descripción de 2-3 líneas"
 }}"""
         
@@ -2592,20 +2591,6 @@ Si el artista es "Anuel AA":
         
         result = json.loads(response_text)
         print(f"✅ JSON parseado correctamente", file=sys.stderr)
-        
-        # 💾 CACHEAR CADA ARTISTA INDIVIDUAL (para collabs como "Travis x Kanye")
-        if result.get('artist_known') and len(artists_list) > 0:
-            for individual_artist in artists_list:
-                if individual_artist not in ARTIST_CACHE:
-                    print(f"💾 Cacheando artista nuevo: {individual_artist}", file=sys.stderr)
-                    ARTIST_CACHE[individual_artist] = {
-                        "genre": result.get('genre', 'Unknown'),
-                        "subgenres": result.get('subgenres', []),
-                        "style": result.get('artist_info', {}).get('style', '') if result.get('artist_info') else '',
-                        "tags_example": result.get('tags', [])[:8]  # Guardar max 8 tags
-                    }
-                else:
-                    print(f"💾 Artista ya en caché: {individual_artist}", file=sys.stderr)
         
         return result
     except Exception as e:
@@ -2657,12 +2642,11 @@ def generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, bpm, key):
     if key:
         tags.add(key)  # "E Minor" completo
         key_short = key.split()[0]  # "D Minor" -> "D"
+        # Mantener solo formas compactas útiles, evitar "Minor/Major" sueltos
         if "Minor" in key:
             tags.add(f"{key_short}m")
-            tags.add("Minor")
         else:
             tags.add(key_short)
-            tags.add("Major")
     
     # BPM (solo el valor, sin tags genéricos que diluyen)
     if bpm:
@@ -2713,7 +2697,16 @@ def generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, bpm, key):
         technical.append('Autotune')
 
     # Bloqueo de genéricos que diluyen IA
-    generic_blocklist = {"Medium", "Lo-Fi", "Ambient", "Smooth", "Pop"}
+    generic_blocklist = {
+        # Placeholders y genéricos vacíos
+        "Unknown", "Unknown Artist", "N/A", "N/A Movement", "N/A Label", "N/A Country",
+        # Palabras demasiado genéricas sin calificador
+        "Music", "Audio", "Beat", "Track", "Song", "Type", "Style", "Instrumental", "Urban",
+        # Adjetivos poco informativos
+        "Medium", "Smooth", "Generic",
+        # Evitar duplicados sin contexto
+        "Trap Latino Type"
+    }
 
     # Mapa semántico simple para dedup
     semantic_groups = [
@@ -2769,7 +2762,21 @@ def generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, bpm, key):
         order.setdefault(t, 2)
 
     combined_sorted = sorted(combined, key=lambda x: order.get(x, 3))
-    final = combined_sorted[:30]
+    # Filtrado final extra para evitar etiquetas vacías o genéricas prohibidas
+    def is_allowed_tag(t):
+        # Bloquear exactos genéricos
+        if t in generic_blocklist:
+            return False
+        # Bloquear "Type Beat" sin artista
+        if t.strip().lower() == "type beat":
+            return False
+        # Bloquear "Style" suelto
+        if t.strip().lower() == "style":
+            return False
+        return True
+
+    filtered = [t for t in combined_sorted if is_allowed_tag(t)]
+    final = filtered[:15]  # Limitar máximo a 15, sin forzar mínimo
     print(f"🏷️ Tags finales: total={len(final)} IA={len(ai_tags)} artists={len(filename_artists)} tech={len(technical)}", file=sys.stderr)
     return final
 
@@ -2826,8 +2833,11 @@ def build_autofill_from_filename(filename_info):
     return data
 
 def safe_parse_filename(name: str):
-    """Parser básico seguro (ASCII-only) para extraer artista, collabs, bpm y key.
-    Formato común: "Artist x Collab - Title - 95 BPM E Minor"
+    """Parser básico seguro (ASCII-only) para extraer artista, collabs, bpm, key, tipo, demo y tagged.
+    Formatos comunes:
+      - "Artist x Collab - Title - 95 BPM E Minor"
+      - "[DEMO] Artist Type Beat - Title - 140 BPM C Minor"
+      - "[TAGGED] Artist - Instrumental - 120 BPM A Minor"
     """
     try:
         parts = [p.strip() for p in re.split(r"\s*-\s*", name) if p.strip()]
@@ -2839,15 +2849,31 @@ def safe_parse_filename(name: str):
             'key': None,
             'type': 'Beat',
             'mood_hint': None,
-            'genre_hint': []
+            'genre_hint': [],
+            'is_demo': False,
+            'is_tagged': False
         }
         if not parts:
             return info
         artseg = parts[0]
+        # Limpiar marcadores [TAGGED], [DEMO], (tagged), (demo) del segmento de artista
+        artseg = re.sub(r'\[(TAGGED|DEMO)\]|\((tagged|demo)\)', '', artseg, flags=re.IGNORECASE).strip()
         artists = [a.strip() for a in re.split(r"\s*(?:x|ft\.?|feat\.?|&|,|\+)\s*", artseg, flags=re.IGNORECASE) if a.strip()]
         if artists:
             info['artist'] = artists[0]
             info['collabs'] = artists
+        # Detectar "Type Beat", "Instrumental", [DEMO], [TAGGED] en cualquier segmento
+        full_lower = name.lower()
+        if 'type beat' in full_lower:
+            info['type'] = 'Type Beat'
+        elif 'instrumental' in full_lower:
+            info['type'] = 'Instrumental'
+        # Detectar [DEMO], (demo), [TAGGED], (tagged)
+        if re.search(r'\[(demo|tagged)\]|\((demo|tagged)\)', full_lower):
+            if 'demo' in full_lower:
+                info['is_demo'] = True
+            if 'tagged' in full_lower:
+                info['is_tagged'] = True
         for p in parts[1:]:
             m_bpm = re.search(r"\b(\d{2,3})\s?bpm\b", p, flags=re.IGNORECASE)
             if m_bpm:
@@ -2873,6 +2899,12 @@ def merge_autofill_into_result(result: dict, filename: str):
     auto = build_autofill_from_filename(info)
 
     # Completar campos si faltan
+    # Nombre del beat y artista(s) desde filename
+    if not result.get('beat_name') and info.get('title'):
+        result['beat_name'] = info['title']
+    if not result.get('reference_artist') and info.get('artist'):
+        result['reference_artist'] = info['artist']
+
     result.setdefault('artist', auto.get('artist'))
     if not result.get('artist') and auto.get('artist'):
         result['artist'] = auto['artist']
@@ -2901,6 +2933,16 @@ def merge_autofill_into_result(result: dict, filename: str):
     if not result.get('mood') and auto.get('mood'):
         result['mood'] = auto['mood']
 
+    # beat_type desde filename si está disponible (Type Beat/Instrumental)
+    if not result.get('beat_type') and info.get('type'):
+        result['beat_type'] = info['type']
+
+    # is_demo e is_tagged desde filename
+    if info.get('is_demo'):
+        result['is_demo'] = True
+    if info.get('is_tagged'):
+        result['is_tagged'] = True
+
     # Combinar tags del filename sin diluir IA
     fn_tags = auto.get('tags_from_filename', []) or []
     existing_tags = result.get('tags', []) or []
@@ -2910,6 +2952,16 @@ def merge_autofill_into_result(result: dict, filename: str):
     # Marcar fuente
     sources = result.get('sources', {})
     sources['filename_autofill'] = True
+    if info.get('artist'):
+        sources['reference_artist_source'] = 'filename'
+    if info.get('title'):
+        sources['beat_name_source'] = 'filename'
+    if info.get('type'):
+        sources['beat_type_source'] = 'filename'
+    if info.get('is_demo'):
+        sources['is_demo_source'] = 'filename'
+    if info.get('is_tagged'):
+        sources['is_tagged_source'] = 'filename'
     result['sources'] = sources
     return result
 

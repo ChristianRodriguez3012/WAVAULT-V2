@@ -70,10 +70,14 @@ class AudioAIAnalyzer {
       let timeoutHandle = null;
 
       // Timeout de 3 minutos para análisis con IA (Groq/Gemini requieren más tiempo)
-      timeoutHandle = setTimeout(() => {
-        pythonProcess.kill('SIGTERM');
-        reject(new Error('Timeout: El análisis tardó más de 3 minutos'));
-      }, 180000);
+        // Timeout más corto para UX: 90 segundos
+        timeoutHandle = setTimeout(() => {
+          // Cortar proceso si se excede el tiempo máximo
+          try {
+            if (pythonProcess && !pythonProcess.killed) pythonProcess.kill('SIGKILL');
+          } catch {}
+          reject(new Error('Timeout: El análisis tardó más de 90 segundos'));
+        }, 90000);
 
       // Capturar salida estándar
       pythonProcess.stdout.on('data', (data) => {
