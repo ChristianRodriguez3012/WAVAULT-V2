@@ -15,47 +15,67 @@ SISTEMA DE CONFIANZA:
 - 95: Detectado en nombre pero no explícito
 - 50-70: Sugerido por análisis de audio (script/IA)
 - 0: No detectado
-
-USO:
-python3 parse_filename_improved.py "Drake Type Beat - Sicario - Dm 140.mp3"
-"""
-
-import sys
-import json
 import re
-from typing import Dict, Optional, List, Tuple
 
-
-# =====================================================
-# DICCIONARIOS DE SINÓNIMOS
-# =====================================================
-
-SCALE_SYNONYMS = {
-    # Minor variations
-    'minor': 'Minor', 'min': 'Minor', 'menor': 'Minor', 'm': 'Minor',
-    # Major variations  
-    'major': 'Major', 'maj': 'Major', 'mayor': 'Major', 'M': 'Major',
-}
-
-NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
-
-
-def generate_key_variations() -> Dict[str, str]:
+def parse_filename(filename: str):
+    """Parser mejorado para extraer metadata clave del nombre.
+    Estructura común: "ARTISTA x COLAB - TITULO - BPM Key [Type]"
+    Extrae: artist, collabs, title, bpm, key, type, mood/genre hints.
     """
-    Genera diccionario completo de variaciones de escalas musicales.
-    
-    Retorna dict donde:
-    - Key: variación (ej: "Amin", "AMin", "A Min", "Am")
-    - Value: formato normalizado (ej: "A Minor")
-    
-    Cubre:
-    - Todas las notas: C, D, E, F, G, A, B
-    - Con modificadores: #, b (sostenido, bemol)
-    - Minor: min, m, minor, MIN, MINOR, Min
-    - Major: maj, M, major, MAJ, MAJOR, Maj
-    - Con/sin espacios: "Amin", "A min", "A Minor"
-    """
-    variations = {}
+    base = filename.rsplit('/', 1)[-1]
+    name = re.sub(r"\.(mp3|wav|flac)$", "", base, flags=re.IGNORECASE)
+    info = {
+        'artist': None,
+        'collabs': [],
+        'title': None,
+        'bpm': None,
+        'key': None,
+        'type': 'Beat',
+        'mood_hint': None,
+        'genre_hint': []
+    }
+
+    parts = [p.strip() for p in re.split(r"\s*-\s*", name) if p.strip()]
+    if not parts:
+        return info
+
+    # Segmento de artistas y posibles collabs
+    artseg = parts[0]
+    artists = [a.strip() for a in re.split(r"\s*(?:x|ft\.?|feat\.?|&|,|\+)\s*", artseg, flags=re.IGNORECASE) if a.strip()]
+    if artists:
+        info['artist'] = artists[0]
+        info['collabs'] = artists
+
+    # Buscar BPM y Key en todos los segmentos
+    for p in parts[1:]:
+        m_bpm = re.search(r"\b(\d{2,3})\s?bpm\b", p, flags=re.IGNORECASE)
+        if m_bpm:
+            info['bpm'] = int(m_bpm.group(1))
+        m_key = re.search(r"\b([A-G](#|b)?\s?(?:Minor|Major|maj|min|m))\b", p, flags=re.IGNORECASE)
+        if m_key:
+            k = m_key.group(1)
+            k = k.replace('maj','Major').replace('min','Minor')
+            if re.search(r"\b[A-G](#|b)?\s*m\b", k):
+                k = re.sub(r"\bm\b", " Minor", k)
+            info['key'] = re.sub(r"\s+", " ", k).strip()
+        # Hint de tipo
+        m_type = re.search(r"\b(Type\s*Beat|Beat|Instrumental)\b", p, flags=re.IGNORECASE)
+        if m_type:
+            info['type'] = 'Beat'
+        # Hints de mood/genre
+        if re.search(r"Melodic|Dark|Aggressive|Chill", p, flags=re.IGNORECASE):
+            found = re.findall(r"Melodic|Dark|Aggressive|Chill", p, flags=re.IGNORECASE)
+            info['mood_hint'] = (info['mood_hint'] or '').strip() or (found[0] if found else None)
+        if re.search(r"Trap Latino|Latin Trap|Reggaeton|Hip-Hop|R&B", p, flags=re.IGNORECASE):
+            info['genre_hint'].extend(re.findall(r"Trap Latino|Latin Trap|Reggaeton|Hip-Hop|R&B", p, flags=re.IGNORECASE))
+
+    # Título
+    if len(parts) > 1:
+        info['title'] = parts[1]
+
+    # Normalizar genero hints unicos
+    info['genre_hint'] = list(dict.fromkeys(info['genre_hint']))
+    return info
     
     notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
     modifiers = ['', '#', 'b']  # natural, sostenido, bemol
@@ -156,8 +176,8 @@ KEY_VARIATIONS = generate_key_variations()
 
 def normalize_note(note_str: str) -> Optional[str]:
     """
-    Normaliza nota musical a formato estándar.
-    Ej: "c♯" → "C#", "Db" → "Db", "A" → "A"
+    Normaliza nota musical a formato estandar.
+    Ejemplos: c# -> C#, Db -> Db, A -> A
     """
     if not note_str or note_str[0].upper() not in NOTE_NAMES:
         return None
@@ -178,7 +198,7 @@ def normalize_note(note_str: str) -> Optional[str]:
 
 
 def normalize_scale_type(scale_str: str) -> Optional[str]:
-    """Normaliza tipo de escala: "min"/"m"/"minor" → "Minor"  """
+    """Normaliza tipo de escala: min/m/minor -> Minor  """
     if not scale_str:
         return None
     return SCALE_SYNONYMS.get(scale_str.strip().lower())

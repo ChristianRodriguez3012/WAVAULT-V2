@@ -2672,57 +2672,198 @@ def generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, bpm, key):
             tags.add(f"{int(bpm/10)*10} BPM")
     
     # 📦 PRIORIDAD 4: METADATOS DEL ARCHIVO (útiles pero no críticos)
-    # Nombre del beat
-    beat_name = parsed_data.get('beat_name')
-    if beat_name and beat_name not in tags:
-        tags.add(beat_name)
-    
-    # Type Beat indicators
-    if parsed_data.get('beat_type'):
-        tags.add("Type Beat")
-    
-    # Demo/Tagged
-    if parsed_data.get('is_demo'):
-        tags.add("Demo")
-    if parsed_data.get('is_tagged'):
-        tags.add("Tagged")
-        tags.add("Watermarked")
-    
-    # 🎚️ PRIORIDAD 5: TAGS GENÉRICOS DE PRODUCCIÓN (solo si NO hay tags de IA suficientes)
-    if len(tags) < 15:
-        tags.add("Instrumental")
-        tags.add("Beat")
-        tags.add("Production")
-        tags.add("Commercial")
-        tags.add("Professional")
-        tags.add("Vocal Ready")
-        tags.add("Production Ready")
-        tags.add("Freestyle")
-        tags.add("Original")
-    
-    # Retornar lista ordenada (tags de IA primero)
-    final_tags = []
-    # Primero los tags de IA
-    for tag in ai_tags:
-        if tag and tag not in final_tags:
-            final_tags.append(tag)
-    # Luego el resto
-    for tag in tags:
-        if tag and tag not in final_tags:
-            final_tags.append(tag)
-    
-    print(f"🏷️  Tags finales combinados: {len(final_tags)} tags", file=sys.stderr)
-    print(f"   🚀 De IA: {len(ai_tags)}, 📦 Automáticos: {len(final_tags) - len(ai_tags)}", file=sys.stderr)
-    
-    return final_tags[:30]  # Máximo 30 tags
+    """
+    Sistema de combinación y refinamiento de tags con prioridad IA y
+    deduplicación semántica básica.
 
+    Prioridad:
+    1) IA (Groq/Gemini)
+    2) Artista(s) y colaboradores del filename
+    3) Técnicos (KEY, BPM, 808s, Autotune)
 
-def combine_all_analysis(parsed_data, audio_analysis, gemini_analysis):
-    """Combina análisis con sistema de confianza."""
-    result = {}
-    
-    # KEY
-    if parsed_data.get('key') and parsed_data.get('key_confidence', 0) >= 95:
+    Mejoras:
+    - Normaliza mayúsculas/minúsculas
+    - Dedup por raíces conocidas (e.g., 'Trap Latino' ~ 'Latin Trap')
+    - Filtra adjetivos genéricos si hay IA fuerte
+    - Limita a 30, ordenado por categoría
+    """
+    import re
+
+    def norm(t):
+        return re.sub(r"\s+", " ", t).strip()
+
+    raw_ai = gemini_analysis.get('tags', []) or []
+    ai_tags = [norm(t) for t in raw_ai if isinstance(t, str) and t.strip()]
+
+    filename_artists = []
+    if parsed_data.get('artist'):
+        filename_artists.append(parsed_data['artist'])
+    for c in parsed_data.get('collabs', []) or []:
+        filename_artists.append(c)
+    filename_artists = [norm(t) for t in filename_artists if t]
+
+    technical = []
+    if key and key != 'Unknown':
+        technical.append(norm(key))
+    if bpm and 60 <= bpm <= 200:
+        technical.append(f"{int(bpm)}BPM")
+    if audio_analysis.get('has_808'):
+        technical.append('808s')
+    if audio_analysis.get('has_autotune'):
+        technical.append('Autotune')
+
+    # Bloqueo de genéricos que diluyen IA
+    generic_blocklist = {"Medium", "Lo-Fi", "Ambient", "Smooth", "Pop"}
+
+    # Mapa semántico simple para dedup
+    semantic_groups = [
+        {"Trap Latino", "Latin Trap"},
+        {"Hip-Hop", "Rap"},
+        {"Reggaeton", "Reguetón"},
+        {"R&B", "Rhythm and Blues"}
+    ]
+
+    def dedup_semantic(tags):
+        s = []
+        seen = set()
+        for t in tags:
+            if t in generic_blocklist:
+                continue
+            rep = t
+            for grp in semantic_groups:
+                if t in grp:
+                    rep = sorted(grp)[0]
+                    break
+            if rep not in seen:
+                seen.add(rep)
+                s.append(rep)
+        return s
+
+    ai_tags = dedup_semantic(ai_tags)
+
+    # Añadir artistas del filename que no estén ya
+    combined = []
+    combined.extend(ai_tags)
+    for a in filename_artists:
+        if a and a not in combined:
+            combined.append(a)
+
+    # Añadir técnicos
+    for t in technical:
+        if t and t not in combined:
+            combined.append(t)
+
+    # Si IA está vacía, permitir algunos descriptores suaves del parser
+    if not ai_tags:
+        soft = parsed_data.get('soft_descriptors', []) or []
+        for s in soft[:5]:
+            s = norm(s)
+            if s and s not in combined and s not in generic_blocklist:
+                combined.append(s)
+
+    # Orden: IA → Artistas → Técnicos → Suaves
+    order = {t: 0 for t in ai_tags}
+    for a in filename_artists:
+        order.setdefault(a, 1)
+    for t in technical:
+        order.setdefault(t, 2)
+
+    combined_sorted = sorted(combined, key=lambda x: order.get(x, 3))
+    final = combined_sorted[:30]
+    print(f"🏷️ Tags finales: total={len(final)} IA={len(ai_tags)} artists={len(filename_artists)} tech={len(technical)}", file=sys.stderr)
+    return final
+
+def build_autofill_from_filename(filename_info):
+    """
+    Construye un autofill inteligente solo desde el nombre del archivo.
+    Entradas esperadas (output de parser mejorado):
+      filename_info = {
+        'artist': 'Swae Lee x Feid',
+        'collabs': ['Swae Lee','Feid'],
+        'bpm': 95,
+        'key': 'E Minor',
+        'type': 'Beat',
+        'mood_hint': 'Melodic',
+        'genre_hint': ['Trap Latino','Reggaeton']
+      }
+    """
+    data = {}
+    artist = filename_info.get('artist')
+    collabs = filename_info.get('collabs') or []
+    bpm = filename_info.get('bpm')
+    key = filename_info.get('key')
+    mood = filename_info.get('mood_hint')
+    genre_hint = filename_info.get('genre_hint') or []
+
+    if artist:
+        data['artist'] = artist
+    if collabs:
+        data['collaborators'] = collabs
+    if bpm:
+        data['bpm'] = bpm
+    if key:
+        data['key'] = key
+    if mood:
+        data['mood'] = mood
+    if genre_hint:
+        data['genre'] = genre_hint[0]
+        data['subgenres'] = genre_hint[1:]
+
+    # Tags mínimos desde filename
+    tags = []
+    for c in collabs:
+        tags.append(c)
+    if key:
+        tags.append(key)
+    if bpm:
+        tags.append(f"{int(bpm)}BPM")
+    for g in genre_hint:
+        tags.append(g)
+    if mood:
+        tags.append(mood)
+
+    data['tags_from_filename'] = list(dict.fromkeys(tags))[:15]
+    return data
+
+def safe_parse_filename(name: str):
+    """Parser básico seguro (ASCII-only) para extraer artista, collabs, bpm y key.
+    Formato común: "Artist x Collab - Title - 95 BPM E Minor"
+    """
+    try:
+        parts = [p.strip() for p in re.split(r"\s*-\s*", name) if p.strip()]
+        info = {
+            'artist': None,
+            'collabs': [],
+            'title': None,
+            'bpm': None,
+            'key': None,
+            'type': 'Beat',
+            'mood_hint': None,
+            'genre_hint': []
+        }
+        if not parts:
+            return info
+        artseg = parts[0]
+        artists = [a.strip() for a in re.split(r"\s*(?:x|ft\.?|feat\.?|&|,|\+)\s*", artseg, flags=re.IGNORECASE) if a.strip()]
+        if artists:
+            info['artist'] = artists[0]
+            info['collabs'] = artists
+        for p in parts[1:]:
+            m_bpm = re.search(r"\b(\d{2,3})\s?bpm\b", p, flags=re.IGNORECASE)
+            if m_bpm:
+                info['bpm'] = int(m_bpm.group(1))
+            m_key = re.search(r"\b([A-G](#|b)?\s?(?:Minor|Major|maj|min|m))\b", p, flags=re.IGNORECASE)
+            if m_key:
+                k = m_key.group(1)
+                k = k.replace('maj','Major').replace('min','Minor')
+                if re.search(r"\b[A-G](#|b)?\s*m\b", k):
+                    k = re.sub(r"\bm\b", " Minor", k)
+                info['key'] = re.sub(r"\s+", " ", k).strip()
+        if len(parts) > 1:
+            info['title'] = parts[1]
+        return info
+    except Exception:
+        return {'artist': None,'collabs': [],'title': None,'bpm': None,'key': None,'type': 'Beat','mood_hint': None,'genre_hint': []}
         result['key'] = parsed_data['key']
         result['key_confidence'] = parsed_data['key_confidence']
         result['key_source'] = 'filename'
