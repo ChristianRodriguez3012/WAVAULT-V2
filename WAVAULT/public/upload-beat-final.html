@@ -311,6 +311,23 @@
                             <div style="font-weight: 600; color: var(--dark); margin-top: 0.3rem;" id="fileName"></div>
                         </div>
 
+                        <!-- Modal de análisis IA -->
+                        <div id="analysisModal" style="display: none; background: #fff3cd; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #ffc107;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span style="font-weight: 600; color: #856404;">Analizando beat con IA...</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #856404;">Por favor espera, esto toma ~3-5 segundos</div>
+                        </div>
+
+                        <div id="analysisResult" style="display: none; background: #d4edda; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #28a745;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <i class="fas fa-check-circle"></i>
+                                <span style="font-weight: 600; color: #155724;">✅ Análisis completado</span>
+                            </div>
+                            <div id="analysisDetails" style="font-size: 0.9rem; color: #155724; line-height: 1.6;"></div>
+                        </div>
+
                         <div class="form-group">
                             <label><i class="fas fa-tag"></i> Nombre del Beat</label>
                             <input type="text" id="beatName" placeholder="Ej: Dark Trap Vibes" required />
@@ -322,24 +339,34 @@
                         </div>
 
                         <div class="form-group">
-                            <label><i class="fas fa-user-circle"></i> Referencia/Artista</label>
-                            <input type="text" id="reference" placeholder="Ej: Drake, Bad Bunny" />
+                            <label><i class="fas fa-user-circle"></i> Referencia/Artista (IA Autofill)</label>
+                            <input type="text" id="reference" placeholder="Ej: Drake, Bad Bunny" style="border: 2px solid #28a745;" />
+                            <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Detectado automáticamente por IA</small>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label><i class="fas fa-music"></i> Tonalidad (Key)</label>
-                                <input type="text" id="keyField" placeholder="Ej: Fm, Am" required />
+                                <label><i class="fas fa-music"></i> Tonalidad (IA Autofill)</label>
+                                <input type="text" id="keyField" placeholder="Ej: Fm, Am" required style="border: 2px solid #28a745;" />
+                                <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Detectado por IA</small>
                             </div>
                             <div class="form-group">
-                                <label><i class="fas fa-tachometer-alt"></i> BPM</label>
-                                <input type="number" id="bpmField" min="50" max="220" placeholder="Ej: 90" required />
+                                <label><i class="fas fa-tachometer-alt"></i> BPM (IA Autofill)</label>
+                                <input type="number" id="bpmField" min="50" max="220" placeholder="Ej: 90" required style="border: 2px solid #28a745;" />
+                                <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Detectado por IA</small>
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label><i class="fas fa-heart"></i> Mood/Emoción</label>
-                            <input type="text" id="moodField" placeholder="Ej: Dark & Atmospheric" />
+                            <label><i class="fas fa-heart"></i> Mood/Emoción (IA Autofill)</label>
+                            <input type="text" id="moodField" placeholder="Ej: Dark & Atmospheric" style="border: 2px solid #28a745;" />
+                            <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Detectado por IA</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-tag"></i> Género (IA Autofill)</label>
+                            <input type="text" id="genreField" placeholder="Ej: Hip-Hop, Trap" style="border: 2px solid #28a745;" readonly />
+                            <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Detectado por IA</small>
                         </div>
 
                         <div class="form-group">
@@ -348,8 +375,9 @@
                         </div>
 
                         <div class="form-group">
-                            <label><i class="fas fa-align-left"></i> Descripción</label>
-                            <textarea id="description" placeholder="Describe tu beat..." rows="3"></textarea>
+                            <label><i class="fas fa-align-left"></i> Descripción (IA Autofill)</label>
+                            <textarea id="description" placeholder="Describe tu beat..." rows="3" style="border: 2px solid #28a745;"></textarea>
+                            <small style="color: #28a745; margin-top: 0.3rem; display: block;">🤖 Descripción generada por IA</small>
                         </div>
 
                         <button type="submit" class="btn-register" style="width: 100%; padding: 1rem; margin-top: 1rem;">
@@ -455,6 +483,74 @@
                 uploadedFile = audioFile.files[0];
                 document.getElementById('fileName').textContent = uploadedFile.name;
                 document.getElementById('fileInfo').style.display = 'block';
+                
+                // 🤖 Analizar beat con IA automáticamente
+                analyzeWithAI();
+            }
+        }
+
+        async function analyzeWithAI() {
+            if (!uploadedFile) return;
+
+            // Mostrar modal de análisis
+            document.getElementById('analysisModal').style.display = 'block';
+            document.getElementById('analysisResult').style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', uploadedFile);
+
+                const response = await fetch('/analyze-beat', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const analysis = result.data;
+                    
+                    // Autofill fields
+                    if (analysis.reference_artist) {
+                        document.getElementById('reference').value = analysis.reference_artist;
+                    }
+                    if (analysis.key) {
+                        document.getElementById('keyField').value = analysis.key;
+                    }
+                    if (analysis.bpm) {
+                        document.getElementById('bpmField').value = analysis.bpm;
+                    }
+                    if (analysis.mood) {
+                        document.getElementById('moodField').value = analysis.mood;
+                    }
+                    if (analysis.genre) {
+                        document.getElementById('genreField').value = analysis.genre + (analysis.subgenres?.length > 0 ? ' / ' + analysis.subgenres.join(', ') : '');
+                        if (!document.getElementById('beatType').value) {
+                            document.getElementById('beatType').value = analysis.genre;
+                        }
+                    }
+                    if (analysis.description) {
+                        document.getElementById('description').value = analysis.description;
+                    }
+                    if (analysis.tags && analysis.tags.length > 0) {
+                        // Mostrar los tags detectados
+                        const tagsText = `<strong>Tags detectados (${analysis.tags.length}):</strong><br>${analysis.tags.slice(0, 8).join(', ')}${analysis.tags.length > 8 ? '...' : ''}`;
+                        document.getElementById('analysisDetails').innerHTML = tagsText;
+                    }
+
+                    // Ocultar modal de análisis y mostrar resultado
+                    document.getElementById('analysisModal').style.display = 'none';
+                    document.getElementById('analysisResult').style.display = 'block';
+
+                    console.log("✅ Análisis completado y campos rellenados");
+                } else {
+                    document.getElementById('analysisModal').style.display = 'none';
+                    alert('⚠️ El análisis no pudo completarse, pero puedes continuar rellenando manualmente');
+                }
+            } catch (error) {
+                console.error('Error en análisis:', error);
+                document.getElementById('analysisModal').style.display = 'none';
+                alert('⚠️ El análisis no pudo completarse, pero puedes continuar rellenando manualmente');
             }
         }
 

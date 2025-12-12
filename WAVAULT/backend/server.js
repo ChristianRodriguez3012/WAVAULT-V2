@@ -546,6 +546,93 @@ app.post("/api/enrich-beats-simple", async (req, res) => {
 });
 
 /**
+ * POST /analyze-beat
+ * Analiza un beat con IA antes de guardarlo
+ * Retorna: key, bpm, reference_artist, genre, mood, tags, etc
+ */
+app.post("/analyze-beat", upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó archivo de audio"
+      });
+    }
+
+    const audioFile = req.file;
+    const fullAudioPath = audioFile.path;
+    const filename = audioFile.originalname;
+
+    console.log(`🔍 Analizando beat: ${filename}`);
+    console.log(`   📁 Ruta: ${fullAudioPath}`);
+
+    // Llamar a analyze_beat_ai.py con --v2
+    const pythonScript = path.join(__dirname, "analyze_beat_ai.py");
+    
+    return new Promise((resolve) => {
+      const py = spawn("python3", [pythonScript, fullAudioPath, filename, "--v2"]);
+      let output = "";
+      let errorOutput = "";
+
+      py.stdout.on("data", data => {
+        output += data.toString();
+      });
+
+      py.stderr.on("data", data => {
+        errorOutput += data.toString();
+        console.error("🐍 stderr:", data.toString());
+      });
+
+      py.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const analysis = JSON.parse(output);
+            console.log("✅ Análisis completado:");
+            console.log(`   🎤 Artists: ${analysis.reference_artist}`);
+            console.log(`   🎵 Key: ${analysis.key} | BPM: ${analysis.bpm}`);
+            console.log(`   🏷️  Tags: ${analysis.tags?.length || 0}`);
+
+            return res.json({
+              success: true,
+              data: analysis
+            });
+          } catch (e) {
+            console.error("❌ Error parseando análisis:", e.message);
+            return res.status(500).json({
+              success: false,
+              message: "Error parseando análisis: " + e.message
+            });
+          }
+        } else {
+          console.error(`❌ Análisis falló con código ${code}`);
+          console.error("Output:", output);
+          console.error("Error:", errorOutput);
+          return res.status(500).json({
+            success: false,
+            message: "Error en análisis IA: " + (errorOutput || "código " + code)
+          });
+        }
+      });
+
+      py.on("error", err => {
+        console.error("❌ Error ejecutando análisis:", err.message);
+        return res.status(500).json({
+          success: false,
+          message: "Error ejecutando análisis: " + err.message
+        });
+      });
+    });
+
+  } catch (error) {
+    console.error("❌ Error en /analyze-beat:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /upload-beat
  * Guarda un beat en la BD después de confirmación del usuario
  * Procesa el archivo con baja calidad + tag WAVAULT
