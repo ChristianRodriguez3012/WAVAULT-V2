@@ -2513,20 +2513,20 @@ def query_gemini_with_full_context(filename, parsed_data, audio_analysis):
    - SI NO lo conoces: descripción genérica basada en características técnicas
 
 📏 FORMATO JSON OBLIGATORIO (ejemplo, mantén estas claves):
-{
-  "key": "X Minor/Major",
-  "key_confidence": 0-100,
-  "key_validated": true/false,
-  "artist_known": true/false,
-  "artist_info": {"genre":"...", "subgenres":["..."], "style":"...", "origin":"pais/ciudad", "label":"..."},
-  "mood": "...",
-  "type": "{parsed_type}",
-  "genre": "...",
-  "subgenres": ["..."],
-  "tags": ["..."],
-  "description": "...",
-  "confidence": {"artist_identification": 0-100, "genre_assignment": 0-100, "tags_quality": 0-100}
-}
+{{
+    "key": "X Minor/Major",
+    "key_confidence": 0-100,
+    "key_validated": true/false,
+    "artist_known": true/false,
+    "artist_info": {{"genre":"...", "subgenres":["..."], "style":"...", "origin":"pais/ciudad", "label":"..."}},
+    "mood": "...",
+    "type": "{parsed_data.get('beat_type') or 'Beat'}",
+    "genre": "...",
+    "subgenres": ["..."],
+    "tags": ["..."],
+    "description": "...",
+    "confidence": {{"artist_identification": 0-100, "genre_assignment": 0-100, "tags_quality": 0-100}}
+}}
 
 EJEMPLO CORRECTO - Artista Conocido (Cro):
 - artist_known: true
