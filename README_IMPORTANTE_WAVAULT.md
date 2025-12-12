@@ -33,26 +33,14 @@ node server.js
 ```
 
 ## 4) Smoke test IA (Groq)
-Genera un audio sintético y valida el análisis V2 con artistas no usados:
+Opción rápida usando el script listo:
 ```bash
 cd /workspaces/WAVAULT-V2/WAVAULT/backend
-export USE_GROQ_PRIMARY=1
-export GROQ_API_KEY="<tu_key>"
-ffmpeg -f lavfi -i "sine=f=440:d=8" -q:a 9 -acodec libmp3lame /tmp/test_unseen.wav -y
-python3 analyze_beat_ai.py /tmp/test_unseen.wav "Central Cee x Ice Spice - Neon Drill TYPE BEAT - 140 BPM F# Minor [DEMO]" --v2 | tee /tmp/test_unseen_output.json
-python3 - <<'PY'
-import json
-with open('/tmp/test_unseen_output.json') as f:
-    data=json.load(f)
-print('Status:', data.get('status'))
-print('Total tags:', len(data.get('tags', [])))
-print('Tags:', ', '.join(data.get('tags', [])))
-print('Artist:', data.get('reference_artist'))
-print('Beat type:', data.get('beat_type'))
-print('BPM:', data.get('bpm'), 'Key:', data.get('key'))
-print('Is demo:', data.get('is_demo'), 'Is tagged:', data.get('is_tagged'))
-PY
+chmod +x smoke_groq_test.sh
+./smoke_groq_test.sh
 ```
+
+Si prefieres manual, sigue los pasos del script (exporta `GROQ_API_KEY`, genera audio con ffmpeg y corre `analyze_beat_ai.py --v2`).
 
 ## 5) Errores vistos y cómo se resolvieron
 - Timeouts altos (180s) -> Reducidos a 90s wrapper y 120s server para mejor UX.
