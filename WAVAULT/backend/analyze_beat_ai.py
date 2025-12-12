@@ -2578,8 +2578,12 @@ EJEMPLO INCORRECTO ❌:
                 print(f"⚠️  Groq falló ({e}), intentando Gemini...", file=sys.stderr)
                 response_text = None
         
-        # Si Groq falló o no está habilitado, usar Gemini
+        # Si Groq falló o no está habilitado, evaluar fallback
         if response_text is None:
+            skip_fallback = os.getenv("SKIP_GEMINI_FALLBACK", "0") == "1"
+            if skip_fallback:
+                print(f"⚠️  Fallback Gemini omitido (SKIP_GEMINI_FALLBACK=1)", file=sys.stderr)
+                raise Exception("Gemini fallback omitido por configuración")
             print(f"📡 V2: Usando Gemini como fallback", file=sys.stderr)
             response_text = call_gemini_with_fallback(prompt, model_name='gemini-2.0-flash-lite')
             print(f"📄 Gemini response (primeros 200 chars): {response_text[:200]}", file=sys.stderr)

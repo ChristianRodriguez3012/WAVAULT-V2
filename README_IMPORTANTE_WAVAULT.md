@@ -33,12 +33,16 @@ node server.js
 ```
 
 ## 4) Smoke test IA (Groq)
-Opción rápida usando el script listo:
+Opción rápida usando el script listo (Groq-only, sin Gemini):
 ```bash
 cd /workspaces/WAVAULT-V2/WAVAULT/backend
 chmod +x smoke_groq_test.sh
 ./smoke_groq_test.sh
 ```
+
+Notas:
+- El smoke setea `SKIP_GEMINI_FALLBACK=1` para evitar llamadas a Gemini si Groq falla.
+- Asegura una `GROQ_API_KEY` válida (formato gsk_...).
 
 Si prefieres manual, sigue los pasos del script (exporta `GROQ_API_KEY`, genera audio con ffmpeg y corre `analyze_beat_ai.py --v2`).
 

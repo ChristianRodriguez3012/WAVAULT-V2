@@ -18,6 +18,7 @@ if [ -z "${GROQ_API_KEY:-}" ]; then
 fi
 
 export USE_GROQ_PRIMARY=1
+export SKIP_GEMINI_FALLBACK=1
 
 AUDIO_FILE="/tmp/test_unseen.wav"
 FILENAME="Central Cee x Ice Spice - Neon Drill TYPE BEAT - 140 BPM F# Minor [DEMO]"
@@ -25,7 +26,7 @@ FILENAME="Central Cee x Ice Spice - Neon Drill TYPE BEAT - 140 BPM F# Minor [DEM
 # Generar audio sintético de 8s
 ffmpeg -f lavfi -i "sine=f=440:d=8" -q:a 9 -acodec libmp3lame "$AUDIO_FILE" -y 2>/dev/null
 
-# Ejecutar análisis V2
+# Ejecutar análisis V2 (solo Groq; Gemini omitido)
 python3 analyze_beat_ai.py "$AUDIO_FILE" "$FILENAME" --v2 | tee /tmp/test_unseen_output.json
 
 # Resumen
