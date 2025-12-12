@@ -1,0 +1,48 @@
+# Environment variables
+.env
+*.env
+.env.*
+!.env.example
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Uploads (archivos de audio)
+WAVAULT/public/uploads/audio/*
+WAVAULT/public/uploads/covers/*
+!WAVAULT/public/uploads/audio/.gitkeep
+!WAVAULT/public/uploads/covers/.gitkeep
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db

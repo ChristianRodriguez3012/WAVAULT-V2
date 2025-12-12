@@ -16,16 +16,36 @@ import os
 import subprocess
 import time
 
+def get_duration(audio_path):
+    """Obtiene duración del audio en ms usando ffprobe"""
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1:noprint_wrappers=1",
+            audio_path
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True, timeout=30)
+        if result.returncode == 0:
+            duration_sec = float(result.stdout.strip())
+            return int(duration_sec * 1000)  # Convertir a ms
+    except:
+        pass
+    return None
+
+
 def process_beat_clone(input_path, output_path, tag_delay_ms=2000):
     """
     Crea un clon del beat con:
     - Calidad reducida (128 kbps)
-    - Tag WAVAULT insertado en momento específico
+    - Tag WAVAULT al inicio (en delay_ms)
+    - Tag WAVAULT al final (3 segundos antes de terminar)
     
     Args:
         input_path: Ruta al archivo original
         output_path: Ruta donde guardar el clon procesado
-        tag_delay_ms: Milisegundos para insertar el tag (default 2000ms)
+        tag_delay_ms: Milisegundos para insertar el tag inicial (default 2000ms)
     
     Returns:
         bool: True si éxito, False si error
@@ -58,15 +78,36 @@ def process_beat_clone(input_path, output_path, tag_delay_ms=2000):
         os.makedirs(output_dir, exist_ok=True)
         
         if has_tag:
-            # FFmpeg: Beat original + Tag WAVAULT con delay + Reducción de calidad
-            # Filter: [0:a] original | [1:a] tag con delay y volumen reducido | merge
+            # Obtener duración del beat original
+            duration_ms = get_duration(input_path)
             
+            if duration_ms:
+                print(f"   ⏱️  Duración detectada: {duration_ms / 1000:.1f}s")
+                # Tag final: 3 segundos antes del fin
+                tag_end_delay_ms = max(0, duration_ms - 3000)
+                print(f"   🔔 Tags insertados en: {tag_delay_ms}ms (inicio) y {tag_end_delay_ms}ms (3s antes del fin)")
+                
+                # FFmpeg: Beat original + 2 Tags WAVAULT (uno al inicio, otro al final)
+                # Filter: [0:a] original | [1:a] tag1 con delay inicial | [2:a] tag2 con delay final | merge todos
+                filter_complex = (
+                    f"[1:a]adelay={tag_delay_ms}|{tag_delay_ms},volume=0.4[tag1];"
+                    f"[1:a]adelay={tag_end_delay_ms}|{tag_end_delay_ms},volume=0.4[tag2];"
+                    f"[0:a][tag1][tag2]amix=inputs=3:duration=first[out]"
+                )
+            else:
+                print(f"   ⚠️  No se pudo detectar duración, usando solo tag inicial")
+                filter_complex = (
+                    f"[1:a]adelay={tag_delay_ms}|{tag_delay_ms},volume=0.4[tag];"
+                    f"[0:a][tag]amix=inputs=2:duration=first[out]"
+                )
+            
+            # FFmpeg: Beat original + Tag WAVAULT con delays + Reducción de calidad
             cmd = [
                 "ffmpeg",
                 "-i", input_path,
                 "-i", tag_path,
                 "-filter_complex",
-                f"[1:a]adelay={tag_delay_ms}|{tag_delay_ms},volume=0.4[tag];[0:a][tag]amix=inputs=2:duration=first[out]",
+                filter_complex,
                 "-map", "[out]",
                 "-b:a", "128k",  # Calidad: 128 kbps (reducida)
                 "-acodec", "libmp3lame",
@@ -90,8 +131,8 @@ def process_beat_clone(input_path, output_path, tag_delay_ms=2000):
         print(f"   Bitrate: 128 kbps")
         print(f"   Codec: MP3 (libmp3lame)")
         if has_tag:
-            print(f"   Tag insertado en: {tag_delay_ms}ms")
-            print(f"   Volumen tag: 0.4 (40%)")
+            print(f"   Tags: Inicio ({tag_delay_ms}ms) + Final (3s antes de terminar)")
+            print(f"   Volumen tags: 0.4 (40%)")
         
         # Ejecutar con supresión de output verbose
         result = subprocess.run(

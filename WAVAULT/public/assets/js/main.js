@@ -17,6 +17,8 @@ async function loadBeatsFromAPI() {
 
 function createBeatCard(beat) {
   const coverUrl = beat.cover ? `/${beat.cover}` : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop';
+  const rawAudio = beat.audio_processed || beat.demo || beat.audio || '';
+  const audioUrl = rawAudio ? (rawAudio.startsWith('/') ? rawAudio : `/${rawAudio}`) : '';
   
   const isProducer = currentUser && currentUser.rol === 'productor';
   const isOwnBeat = currentUser && beat.producer === currentUser.email;
@@ -33,7 +35,14 @@ function createBeatCard(beat) {
   }
   
   return `
-    <div class="beat-card">
+    <div class="beat-card"
+         data-beat-id="${beat.id}"
+         data-audio-url="${audioUrl}"
+         data-bpm="${beat.bpm || '-'}"
+         data-key="${beat.key || '-'}"
+         data-precio="${beat.price || 0}"
+         data-producer="${beat.producer || beat.artist || 'Unknown'}"
+         data-cover="${coverUrl}">
       <div class="beat-card-image" style="background-image: url('${coverUrl}'); background-size: cover; background-position: center;">
         <div class="beat-card-overlay">
           <button class="play-btn" data-beat-id="${beat.id}">
@@ -83,94 +92,49 @@ function loadBeats(beatsToShow) {
   beatsToShow.forEach(beat => {
     feed.innerHTML += createBeatCard(beat);
   });
+
+  if (typeof setupBeatClickListeners === 'function') {
+    setupBeatClickListeners();
+  }
 }
 
 function playBeat(beat, event) {
   if (event) event.stopPropagation();
-  
+
   console.log('🎵 playBeat called:', beat);
-  
   currentBeat = beat;
-  
-  // Usar demo si existe, si no usar el audio original
-  const audioPath = beat.demo || beat.audio;
+
+  const audioPath = beat.audio_processed || beat.demo || beat.audio;
   console.log('🎵 Audio path:', audioPath);
-  
+
   if (!audioPath) {
     console.error('❌ No audio path found');
     alert('Este beat no tiene audio disponible');
     return;
   }
-  
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
-  
+
   const cleanPath = audioPath.startsWith('/') ? audioPath : `/${audioPath}`;
-  console.log('🎵 Clean audio path:', cleanPath);
-  
-  currentAudio = new Audio(cleanPath);
-  currentAudio.volume = 0.8;
-  
-  // Actualizar UI del reproductor
-  const player = document.getElementById('globalPlayer');
-  const coverImg = document.getElementById('playerCover');
-  const title = document.getElementById('playerTitle');
-  const artist = document.getElementById('playerArtist');
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  
-  if (!player) {
-    console.error('❌ Global player not found');
-    return;
+  const beatData = {
+    id: beat.id,
+    nombre: beat.title || beat.name || 'Sin título',
+    productor: beat.producer || beat.artist || 'Productor desconocido',
+    portada: beat.cover ? `/${beat.cover}` : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop',
+    archivo: cleanPath,
+    bpm: beat.bpm || '-',
+    key: beat.key || '-',
+    precio: beat.price || 0
+  };
+
+  if (window.wavaultPlayer) {
+    window.wavaultPlayer.setBeat(beatData);
+  } else {
+    console.error('❌ WavaultPlayer no inicializado');
   }
-  
-  console.log('✅ Player found, updating UI...');
-  
-  coverImg.src = beat.cover ? `/${beat.cover}` : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop';
-  title.textContent = beat.title;
-  artist.textContent = beat.producer || beat.artist || 'Unknown';
-  
-  player.style.display = 'block';
-  console.log('✅ Player visible');
-  
-  currentAudio.play()
-    .then(() => {
-      console.log('✅ Audio playing');
-      playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
-    })
-    .catch(error => {
-      console.error('❌ Error playing audio:', error);
-      alert('Error al reproducir: ' + error.message);
-    });
-  
-  // Event listeners para el audio
-  currentAudio.addEventListener('timeupdate', updateProgress);
-  currentAudio.addEventListener('ended', () => {
-    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
-  });
-  currentAudio.addEventListener('loadedmetadata', () => {
-    document.getElementById('duration').textContent = formatTime(currentAudio.duration);
-  });
-  currentAudio.addEventListener('error', (e) => {
-    console.error('❌ Audio error:', e, currentAudio.error);
-    alert('Error cargando el audio');
-  });
-  
-  console.log(`🎵 Reproduciendo: ${beat.title} - ${beat.artist || beat.producer}`);
 }
 
 function togglePlayPause() {
-  if (!currentAudio) return;
-  
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  
-  if (currentAudio.paused) {
-    currentAudio.play();
-    playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
-  } else {
-    currentAudio.pause();
-    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+  if (window.wavaultPlayer) {
+    window.wavaultPlayer.togglePlay();
   }
 }
 
@@ -184,15 +148,14 @@ function updateProgress() {
 }
 
 function seekAudio(value) {
-  if (!currentAudio) return;
-  const time = (value / 100) * currentAudio.duration;
-  currentAudio.currentTime = time;
+  if (window.wavaultPlayer) {
+    window.wavaultPlayer.seekTo(value);
+  }
 }
 
 function changeVolume(value) {
-  if (!currentAudio) return;
-  currentAudio.volume = value / 100;
-  
+  if (!window.wavaultPlayer) return;
+  window.wavaultPlayer.setVolume(value);
   const volumeBtn = document.getElementById('volumeBtn');
   if (value == 0) {
     volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';

@@ -10,6 +10,9 @@ class WavaultPlayer {
     this.audioElement = null;
     this.playlist = [];
     this.currentIndex = 0;
+    this.currentSources = [];
+    this.currentSourceIndex = 0;
+    this.autoPlayOnSet = true;
     this.loopMode = 0; // 0: no loop, 1: loop one
     this.shuffleMode = false;
     this.shuffleIndices = []; // Para mantener el orden aleatorio
@@ -86,17 +89,30 @@ class WavaultPlayer {
     if (saved) {
       try {
         const beat = JSON.parse(saved);
-        this.setBeat(beat);
+        // No autoplays al entrar: solo carga el beat guardado
+        this.setBeat(beat, true, false);
       } catch (e) {
         console.error('Error loading saved beat:', e);
       }
     }
   }
 
-  setBeat(beat, addToPlaylist = true) {
+  setBeat(beat, addToPlaylist = true, autoPlay = true) {
     console.log('🎯 setBeat() llamado con:', beat);
     
     this.currentBeat = beat;
+    this.autoPlayOnSet = autoPlay;
+    this.currentSources = [];
+    this.currentSourceIndex = 0;
+    
+    // Construir lista de fuentes: principal + posibles fallbacks
+    const sources = [];
+    if (beat.archivo) sources.push(beat.archivo);
+    if (Array.isArray(beat.fallbacks)) {
+      sources.push(...beat.fallbacks.filter(Boolean));
+    }
+    // Filtrar duplicados manteniendo orden de prioridad
+    this.currentSources = [...new Set(sources.filter(Boolean))];
     localStorage.setItem('wavaultCurrentBeat', JSON.stringify(beat));
 
     // Añadir a playlist
@@ -136,18 +152,25 @@ class WavaultPlayer {
       console.log('✅ playerCover actualizado a:', this.elements.playerCover.src);
     }
 
-    // Configurar audio
+    // Configurar audio (URL segura: codifica espacios y '#')
     if (this.audioElement) {
-      this.audioElement.src = beat.archivo || '';
-      console.log('✅ Audio configurado:', beat.archivo);
-      this.resetProgress();
+      if (this.currentSources.length === 0) {
+        console.warn('⚠️ setBeat: no hay fuentes de audio disponibles');
+      } else {
+        this.setAudioSource(this.currentSources[0]);
+      }
     }
 
     // Reproducir automáticamente (con manejo de error para CORS/autoplay)
-    console.log('🎵 Intentando reproducir...');
-    this.play().catch(error => {
-      console.warn('⚠️ Autoplay bloqueado por navegador, requiere interacción:', error);
-    });
+    if (autoPlay) {
+      console.log('🎵 Intentando reproducir...');
+      this.play().catch(error => {
+        console.warn('⚠️ Autoplay bloqueado por navegador, requiere interacción:', error);
+      });
+    } else {
+      this.isPlaying = false;
+      this.updatePlayButton();
+    }
   }
 
   formatTime(seconds) {
@@ -193,6 +216,20 @@ class WavaultPlayer {
     } else {
       console.warn('  ❌ currentTime no existe');
     }
+  }
+
+  setAudioSource(rawSrc) {
+    if (!this.audioElement) return;
+    const escapedSrc = (rawSrc || '').replace(/#/g, '%23').replace(/ /g, '%20');
+    const resolved = escapedSrc.startsWith('http')
+      ? escapedSrc
+      : `${window.location.origin}${escapedSrc.startsWith('/') ? '' : '/'}${escapedSrc}`;
+    const urlObj = new URL(resolved);
+    const safeSrc = urlObj.toString();
+    this.audioElement.src = safeSrc;
+    this.audioElement.load();
+    console.log('✅ Audio configurado:', safeSrc);
+    this.resetProgress();
   }
 
   resetProgress() {
@@ -475,6 +512,22 @@ class WavaultPlayer {
       this.isPlaying = false;
       this.updatePlayButton();
       console.log('⏸️ Audio evento pause - ícono actualizado a play');
+    });
+
+    // Intentar siguiente fuente si hay error de carga (404, etc.)
+    this.audioElement.addEventListener('error', () => {
+      const nextIndex = this.currentSourceIndex + 1;
+      if (nextIndex < this.currentSources.length) {
+        const nextSrc = this.currentSources[nextIndex];
+        console.warn('⚠️ Error de audio, probando fallback:', nextSrc);
+        this.currentSourceIndex = nextIndex;
+        this.setAudioSource(nextSrc);
+        if (this.autoPlayOnSet) {
+          this.play().catch(err => console.error('❌ Play error en fallback:', err));
+        }
+      } else {
+        console.error('❌ Sin más fuentes disponibles para este beat');
+      }
     });
 
     // Player controls

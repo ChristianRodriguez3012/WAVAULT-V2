@@ -19,18 +19,32 @@ function setupBeatClickListeners() {
           e.target.closest('.add-to-cart-btn') ||
           e.target.closest('button.add-to-cart-btn')) return;
 
-      // Obtener datos del beat del card
-      // PRIORIDAD: audio_processed (clon con baja calidad + tag) > audio (original)
+      // Construir lista de fuentes (prioridad: clone/tagged > demo > original)
+      const candidates = [
+        this.dataset.audioProcessed,
+        this.dataset.audioUrl,
+        this.dataset.audio,
+        this.dataset.demo,
+        this.dataset.audioDemo
+      ].filter(Boolean);
+
+      // Si solo hay clone, añade original como fallback deduciendo el nombre
+      const cloneCandidate = candidates.find(src => src.includes('_clone.'));
+      if (cloneCandidate) {
+        const originalGuess = cloneCandidate.replace('_clone.', '.');
+        candidates.push(originalGuess);
+      }
+
+      const archivoPrincipal = candidates[0] || '/uploads/audio/' + this.dataset.beatId + '_clone.mp3';
+      const fallbacks = [...new Set(candidates.filter(src => src && src !== archivoPrincipal))];
+
       const beatData = {
         id: this.dataset.beatId,
         nombre: this.querySelector('.beat-title, .beat-header h3, h3')?.textContent?.trim() || 'Sin título',
-        productor: this.querySelector('.beat-producer, .beat-artist, [data-producer]')?.textContent?.trim() || 'Productor desconocido',
+        productor: this.dataset.producer || this.querySelector('.beat-producer, .beat-artist')?.textContent?.trim() || 'Productor desconocido',
         portada: this.querySelector('.beat-cover, img')?.src || '/assets/img/placeholder.jpg',
-        // ✅ Prioridad: audio_processed > audio
-        archivo: this.dataset.audioProcessed || 
-                 this.dataset.audioUrl || 
-                 this.dataset.audio || 
-                 '/uploads/audio/' + this.dataset.beatId + '_clone.mp3',
+        archivo: archivoPrincipal,
+        fallbacks,
         precio: this.dataset.precio || '0',
         bpm: this.dataset.bpm || this.querySelector('[data-bpm]')?.dataset?.bpm || '-',
         key: this.dataset.key || this.querySelector('[data-key]')?.dataset?.key || '-'
@@ -54,16 +68,29 @@ function setupBeatClickListeners() {
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         
+        const btnCandidates = [
+          card.dataset.audioProcessed,
+          card.dataset.audioUrl,
+          card.dataset.audio,
+          card.dataset.demo,
+          card.dataset.audioDemo
+        ].filter(Boolean);
+
+        const btnClone = btnCandidates.find(src => src.includes('_clone.'));
+        if (btnClone) {
+          btnCandidates.push(btnClone.replace('_clone.', '.'));
+        }
+
+        const btnArchivo = btnCandidates[0] || '/uploads/audio/' + card.dataset.beatId + '_clone.mp3';
+        const btnFallbacks = [...new Set(btnCandidates.filter(src => src && src !== btnArchivo))];
+
         const beatData = {
           id: card.dataset.beatId,
           nombre: card.querySelector('.beat-title, .beat-header h3, h3')?.textContent?.trim() || 'Sin título',
-          productor: card.querySelector('.beat-producer, .beat-artist, [data-producer]')?.textContent?.trim() || 'Productor desconocido',
+          productor: card.dataset.producer || card.querySelector('.beat-producer, .beat-artist')?.textContent?.trim() || 'Productor desconocido',
           portada: card.querySelector('.beat-cover, img')?.src || '/assets/img/placeholder.jpg',
-          // ✅ Prioridad: audio_processed > audio
-          archivo: card.dataset.audioProcessed || 
-                   card.dataset.audioUrl || 
-                   card.dataset.audio || 
-                   '/uploads/audio/' + card.dataset.beatId + '_clone.mp3',
+          archivo: btnArchivo,
+          fallbacks: btnFallbacks,
           precio: card.dataset.precio || '0',
           bpm: card.dataset.bpm || card.querySelector('[data-bpm]')?.dataset?.bpm || '-',
           key: card.dataset.key || card.querySelector('[data-key]')?.dataset?.key || '-'
@@ -81,7 +108,7 @@ function setupBeatClickListeners() {
     }
 
     // Marcar como procesado
-    this.dataset.playerAttached = 'true';
+    card.dataset.playerAttached = 'true';
   });
 }
 

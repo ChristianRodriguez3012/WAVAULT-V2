@@ -8,7 +8,6 @@ if (!usuario || usuario.rol !== "cliente") {
 // Estado global
 let allBeats = [];
 let carrito = JSON.parse(localStorage.getItem(`carrito_${usuario.email}`)) || [];
-let currentAudio = null;
 let currentBeat = null;
 
 // Cargar beats desde API
@@ -27,12 +26,21 @@ async function loadBeatsFromAPI() {
 // Crear tarjeta de beat
 function createBeatCard(beat) {
   const coverUrl = beat.cover ? `/${beat.cover}` : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop';
+  const rawAudio = beat.audio_processed || beat.demo || beat.audio || '';
+  const audioUrl = rawAudio ? (rawAudio.startsWith('/') ? rawAudio : `/${rawAudio}`) : '';
   
   return `
-    <div class="beat-card">
+    <div class="beat-card"
+         data-beat-id="${beat.id}"
+         data-audio-url="${audioUrl}"
+         data-bpm="${beat.bpm || '-'}"
+         data-key="${beat.key || '-'}"
+         data-precio="${beat.price || 0}"
+         data-producer="${beat.producer || beat.artist || 'Unknown'}"
+         data-cover="${coverUrl}">
       <div class="beat-card-image" style="background-image: url('${coverUrl}'); background-size: cover; background-position: center;">
         <div class="beat-card-overlay">
-          <button class="play-btn" onclick='playBeat(${JSON.stringify(beat)}, event)'>
+          <button class="play-btn" data-beat-id="${beat.id}">
             <i class="fas fa-play"></i>
           </button>
         </div>
@@ -47,10 +55,10 @@ function createBeatCard(beat) {
         </p>
         <div class="beat-meta">
           <span title="Beats Per Minute">
-            <i class="fas fa-tachometer-alt"></i> ${beat.bpm} BPM
+            <i class="fas fa-tachometer-alt"></i> ${beat.bpm || 0} BPM
           </span>
           <span title="Tonalidad">
-            <i class="fas fa-music"></i> ${beat.key}
+            <i class="fas fa-music"></i> ${beat.key || '-'}
           </span>
         </div>
         <div class="beat-tags">
@@ -84,6 +92,11 @@ function renderizarBeats(beatsToShow = allBeats) {
   });
   
   actualizarContadorCarrito();
+
+  // Re-atacha listeners de reproducción usando el player global
+  if (typeof setupBeatClickListeners === 'function') {
+    setupBeatClickListeners();
+  }
 }
 
 // Reproducir beat - Usa el player global
@@ -91,7 +104,7 @@ function playBeat(beat, event) {
   if (event) event.stopPropagation();
   
   currentBeat = beat;
-  const audioPath = beat.demo || beat.audio;
+  const audioPath = beat.audio_processed || beat.demo || beat.audio;
   
   console.log('🎵 Play Beat Called:', beat);
   console.log('🎵 Audio Path:', audioPath);
@@ -118,77 +131,6 @@ function playBeat(beat, event) {
   } else {
     console.error('❌ Global player no inicializado');
   }
-}
-
-  currentAudio.addEventListener('error', (e) => {
-    console.error('❌ Audio error:', e);
-    console.error('❌ Audio error details:', currentAudio.error);
-    alert('Error cargando el audio. Verifica que el archivo existe.');
-  });
-  
-  console.log(`🎵 Reproduciendo: ${beat.title}`);
-}
-
-// Controles del reproductor
-function togglePlayPause() {
-  if (!currentAudio) return;
-  
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  
-  if (currentAudio.paused) {
-    currentAudio.play();
-    playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
-  } else {
-    currentAudio.pause();
-    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
-  }
-}
-
-function updateProgress() {
-  if (!currentAudio) return;
-  
-  const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
-  document.getElementById('progressFill').style.width = progress + '%';
-  document.getElementById('progressSlider').value = progress;
-  document.getElementById('currentTime').textContent = formatTime(currentAudio.currentTime);
-}
-
-function seekAudio(value) {
-  if (!currentAudio) return;
-  const time = (value / 100) * currentAudio.duration;
-  currentAudio.currentTime = time;
-}
-
-function changeVolume(value) {
-  if (!currentAudio) return;
-  currentAudio.volume = value / 100;
-  
-  const volumeBtn = document.getElementById('volumeBtn');
-  if (value == 0) {
-    volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-  } else if (value < 50) {
-    volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
-  } else {
-    volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-  }
-}
-
-function toggleMute() {
-  const volumeSlider = document.getElementById('volumeSlider');
-  if (volumeSlider.value > 0) {
-    volumeSlider.dataset.previousVolume = volumeSlider.value;
-    volumeSlider.value = 0;
-  } else {
-    volumeSlider.value = volumeSlider.dataset.previousVolume || 80;
-  }
-  changeVolume(volumeSlider.value);
-}
-
-function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // Agregar al carrito

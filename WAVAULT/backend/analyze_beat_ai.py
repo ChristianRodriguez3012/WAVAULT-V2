@@ -4,6 +4,12 @@ analyze_beat_ai.py
 Analiza características técnicas de audio e infiere Mood y Tags usando Gemini AI.
 Incluye: BPM, Key, LUFS, Acordes, Análisis Espectral, MFCC.
 Invocación: python3 analyze_beat_ai.py <ruta_archivo_audio> <nombre_archivo>
+
+SISTEMA MEJORADO:
+- Integración con parse_filename_improved.py
+- Sistema de confianza (100/70/50)
+- Validación de escalas por IA
+- Tags inteligentes (1-3 palabras)
 """
 
 import sys
@@ -18,9 +24,282 @@ import google.generativeai as genai
 from urllib.parse import urlencode, quote
 import urllib.request
 from html.parser import HTMLParser
+from dotenv import load_dotenv
 
-# Configuración de la API de Gemini
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'tu_api_key_aqui')
+# Cargar variables de entorno desde .env
+load_dotenv()
+
+# Importar el nuevo parser
+try:
+    from parse_filename_improved import parse_filename
+    PARSER_AVAILABLE = True
+except ImportError:
+    print("⚠️  parse_filename_improved no disponible, usando fallback", file=sys.stderr)
+    PARSER_AVAILABLE = False
+
+# 🔑 SISTEMA MULTI-API KEY CON FALLBACK AUTOMÁTICO (dinámico)
+# Fuentes soportadas:
+# 1) `GEMINI_API_KEYS` (CSV): "KEY_A,KEY_B,KEY_C"
+# 2) Variables numeradas: GEMINI_API_KEY, GEMINI_API_KEY_2..GEMINI_API_KEY_10
+
+_csv_keys = os.environ.get('GEMINI_API_KEYS', '')
+_list_from_csv = [k.strip() for k in _csv_keys.split(',') if k.strip()] if _csv_keys else []
+
+_numbered_keys = []
+base = os.environ.get('GEMINI_API_KEY', '')
+if base:
+    _numbered_keys.append(base)
+for i in range(2, 11):  # Soporta hasta 10 keys numeradas
+    k = os.environ.get(f'GEMINI_API_KEY_{i}', '')
+    if k:
+        _numbered_keys.append(k)
+
+# Unir, filtrar vacíos, placeholders y duplicados preservando orden
+_all_keys = _list_from_csv + _numbered_keys
+seen = set()
+ACTIVE_API_KEYS = []
+for key in _all_keys:
+    if not key or key in ('tu_api_key_aqui', 'empty'):
+        continue
+    if key in seen:
+        continue
+    seen.add(key)
+    ACTIVE_API_KEYS.append(key)
+
+# Soporte de emergencia con Groq (Llama 3)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+USE_GROQ_PRIMARY = os.getenv("USE_GROQ_PRIMARY", "1") == "1" and bool(GROQ_API_KEY)
+
+# Índice de la key actual (se rota en caso de error)
+CURRENT_KEY_INDEX = 0
+
+# Configuración legacy (para compatibilidad con código existente)
+GEMINI_API_KEY = ACTIVE_API_KEYS[0] if ACTIVE_API_KEYS else 'tu_api_key_aqui'
+
+print(f"🔑 Sistema Multi-API Key inicializado: {len(ACTIVE_API_KEYS)} key(s) activa(s)", file=sys.stderr)
+if len(ACTIVE_API_KEYS) > 1:
+    print(f"   └─ Fallback automático habilitado (rotación secuencial)", file=sys.stderr)
+
+# 💾 CACHÉ SIMPLE DE ARTISTAS (para reducir requests a Gemini)
+# Estructura: {"artist_name": {"genre": "...", "subgenres": [...], "style": "...", "tags_example": [...]}}
+ARTIST_CACHE = {
+    "Kendrick Lamar": {"genre": "Hip-Hop/Rap", "subgenres": ["Conscious Hip-Hop", "Rage Trap"], "style": "Dark, layered, introspective, west coast", "tags_example": ["Dark", "Rage", "Conscious", "Street"]},
+    "Travis Scott": {"genre": "Hip-Hop/Trap", "subgenres": ["Psychedelic Trap", "Melodic Trap"], "style": "Atmospheric, spacey, hypnotic, houston", "tags_example": ["Atmospheric", "Spacey", "Hypnotic", "Psychedelic"]},
+    "The Weeknd": {"genre": "R&B/Trap", "subgenres": ["R&B Trap", "Synthwave"], "style": "Atmospheric, melancholic, emotional, synth-driven", "tags_example": ["Emotional", "Melancholic", "Synth", "Dark"]},
+    "Drake": {"genre": "Hip-Hop/Rap", "subgenres": ["Melodic Rap", "Trap"], "style": "Smooth, melodic, introspective, toronto", "tags_example": ["Smooth", "Melodic", "Introspective", "Chill"]},
+    "Future": {"genre": "Hip-Hop/Trap", "subgenres": ["Trap", "Rap"], "style": "Hard, aggressive, future-focused, atlanta", "tags_example": ["Aggressive", "Hard", "Futuristic", "Bass"]},
+}
+
+# 🏥 HEALTH CHECK CACHE: Registra qué keys están funcionales
+# Estructura: {"key_index": {"status": "ok"/"bad", "last_check": timestamp, "error_count": int}}
+import time
+API_KEY_HEALTH = {}
+
+def check_api_key_health(api_key, key_index):
+    """
+    Verifica si una API key está funcional con un prompt mínimo (health check).
+    Usa caché para evitar verificar constantemente keys que ya sabemos están mal.
+    
+    Args:
+        api_key: La API key a verificar
+        key_index: Índice de la key (para logging)
+    
+    Returns:
+        (is_healthy: bool, error_msg: str)
+    """
+    # Verificar si ya tenemos info reciente de esta key
+    now = time.time()
+    if key_index in API_KEY_HEALTH:
+        cache_entry = API_KEY_HEALTH[key_index]
+        time_since_check = now - cache_entry['last_check']
+        
+        # Si la key estaba OK y la verificamos hace menos de 5 minutos → asumir que sigue OK
+        if cache_entry['status'] == 'ok' and time_since_check < 300:
+            return True, None
+        
+        # Si la key estaba MAL y la verificamos hace menos de 1 minuto → skip (evitar spam)
+        if cache_entry['status'] == 'bad' and time_since_check < 60:
+            return False, cache_entry.get('error_msg', 'Key fallida recientemente')
+    
+    # Health check real: prompt ultra-mínimo (solo 10 tokens)
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        response = model.generate_content("Say OK")  # 10 tokens aprox
+        
+        # Si llegamos aquí, la key funciona
+        API_KEY_HEALTH[key_index] = {
+            'status': 'ok',
+            'last_check': now,
+            'error_count': 0,
+            'error_msg': None
+        }
+        return True, None
+        
+    except Exception as e:
+        error_str = str(e)
+        error_count = API_KEY_HEALTH.get(key_index, {}).get('error_count', 0) + 1
+        
+        API_KEY_HEALTH[key_index] = {
+            'status': 'bad',
+            'last_check': now,
+            'error_count': error_count,
+            'error_msg': error_str[:100]
+        }
+        
+        return False, error_str
+
+
+def get_next_api_key():
+    """
+    Obtiene la siguiente API key disponible (rotación automática).
+    Retorna: (api_key, key_index) o (None, -1) si no hay más keys
+    """
+    global CURRENT_KEY_INDEX
+    
+    if not ACTIVE_API_KEYS:
+        return None, -1
+    
+    # Intentar con la siguiente key
+    if CURRENT_KEY_INDEX < len(ACTIVE_API_KEYS):
+        key = ACTIVE_API_KEYS[CURRENT_KEY_INDEX]
+        index = CURRENT_KEY_INDEX
+        CURRENT_KEY_INDEX += 1
+        return key, index
+    
+    # Ya probamos todas las keys
+    return None, -1
+
+
+def reset_api_key_rotation():
+    """Resetea el índice de rotación de API keys (para nuevo beat)"""
+    global CURRENT_KEY_INDEX
+    CURRENT_KEY_INDEX = 0
+
+
+def call_gemini_with_fallback(prompt, model_name="gemini-2.0-flash-lite"):
+    """
+    Llama a Gemini con fallback automático entre múltiples API keys.
+        INCLUYE HEALTH CHECK: Verifica que la key esté funcional ANTES de enviar el prompt.
+    
+    Args:
+        prompt: Prompt a enviar
+        model_name: Modelo de Gemini a usar
+    
+    Returns:
+        response_text: Respuesta de Gemini
+        
+    Raises:
+        Exception: Si todas las keys fallan
+    """
+    if not ACTIVE_API_KEYS:
+        raise Exception("❌ No hay API keys configuradas")
+    
+    reset_api_key_rotation()
+    last_error = None
+    
+    while True:
+        api_key, key_index = get_next_api_key()
+        
+        if api_key is None:
+            # Ya probamos todas las keys
+            error_msg = f"❌ Todas las API keys fallaron ({len(ACTIVE_API_KEYS)} intentos)"
+            if last_error:
+                error_msg += f"\nÚltimo error: {str(last_error)}"
+            raise Exception(error_msg)
+        
+        # 🏥 HEALTH CHECK: Verificar si la key está funcional ANTES de enviar el prompt
+        print(f"🔍 Verificando API KEY #{key_index + 1}...", file=sys.stderr)
+        is_healthy, error_msg = check_api_key_health(api_key, key_index)
+        
+        if not is_healthy:
+            print(f"⚠️  API KEY #{key_index + 1} NO funcional (health check) - probando siguiente...", file=sys.stderr)
+            print(f"   Razón: {error_msg[:100]}", file=sys.stderr)
+            last_error = Exception(error_msg)
+            continue  # Saltar esta key sin enviar el prompt
+        
+        print(f"✅ API KEY #{key_index + 1} pasa health check - enviando prompt...", file=sys.stderr)
+        
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            
+            # Si llegamos aquí, funcionó
+            print(f"✅ API KEY #{key_index + 1} funcionó correctamente", file=sys.stderr)
+            reset_api_key_rotation()  # Resetear para próximo beat
+            return response.text
+            
+        except Exception as e:
+            error_str = str(e)
+            last_error = e
+            
+            # Detectar tipo de error
+            if "429" in error_str or "quota" in error_str.lower() or "limit" in error_str.lower():
+                print(f"⚠️  API KEY #{key_index + 1} alcanzó límite (429) - probando siguiente...", file=sys.stderr)
+            elif "403" in error_str or "invalid" in error_str.lower():
+                print(f"⚠️  API KEY #{key_index + 1} inválida (403) - probando siguiente...", file=sys.stderr)
+            else:
+                print(f"⚠️  API KEY #{key_index + 1} falló: {error_str[:100]} - probando siguiente...", file=sys.stderr)
+            
+            # Actualizar health cache como "bad" para esta key
+            API_KEY_HEALTH[key_index] = {
+                'status': 'bad',
+                'last_check': time.time(),
+                'error_count': API_KEY_HEALTH.get(key_index, {}).get('error_count', 0) + 1,
+                'error_msg': error_str[:100]
+            }
+            
+            # Continuar con la siguiente key en el loop
+
+
+# ==========================================
+# LLAMADA A GROQ (LLAMA 3) - EMERGENCIA
+# ==========================================
+def call_groq_with_json(prompt, model_name=None):
+    """Llama a Groq y fuerza salida JSON. Requiere GROQ_API_KEY."""
+    if not GROQ_API_KEY:
+        raise Exception("❌ GROQ_API_KEY no configurada")
+    try:
+        from groq import Groq
+    except Exception as e:
+        raise Exception(f"No se pudo importar groq: {e}")
+    try:
+        if not model_name:
+            model_name = GROQ_MODEL
+        client = Groq(api_key=GROQ_API_KEY)
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Eres un asistente experto. Analiza la información y retorna SOLO JSON válido. Sin texto extra."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model=model_name,
+            response_format={"type": "json_object"},
+            temperature=0.0
+        )
+        # Log de verificación Groq
+        try:
+            rid = getattr(chat_completion, 'id', None)
+            usage = getattr(chat_completion, 'usage', None)
+            used_model = getattr(chat_completion, 'model', model_name)
+            if usage and hasattr(usage, 'prompt_tokens'):
+                print(f"✅ Groq OK id={rid} model={used_model} usage(p={usage.prompt_tokens}, c={usage.completion_tokens}, t={usage.total_tokens})", file=sys.stderr)
+            else:
+                print(f"✅ Groq OK id={rid} model={used_model}", file=sys.stderr)
+        except Exception:
+            pass
+        raw_json = chat_completion.choices[0].message.content
+        time.sleep(0.2)
+        return raw_json
+    except Exception as e:
+        raise Exception(f"Groq error: {e}")
 
 
 def scrape_tunebat_song(artist, song_name):
@@ -37,12 +316,10 @@ def scrape_tunebat_song(artist, song_name):
         o {} si no encuentra o hay error
     """
     try:
-        # Verificar si API key está disponible
-        if not GEMINI_API_KEY or GEMINI_API_KEY == "empty":
-            print(f"⚠️  API Key no disponible - omitiendo búsqueda TuneBat", file=sys.stderr)
+        # Verificar si hay API keys disponibles
+        if not ACTIVE_API_KEYS:
+            print(f"⚠️  No hay API Keys disponibles - omitiendo búsqueda TuneBat", file=sys.stderr)
             return {}
-        
-        genai.configure(api_key=GEMINI_API_KEY)
         
         # Usar Gemini para buscar en TuneBat
         prompt = f"""Busca información en TuneBat para:
@@ -58,13 +335,11 @@ Ejemplo válido:
 {{"bpm": 130, "key": "G major", "song_title": "goosebumps", "source": "tunebat"}}
 """
         
-        model = genai.GenerativeModel(
-            'gemini-2.0-flash',
-            tools=[genai.protos.Tool(google_search_retrieval=genai.protos.GoogleSearchRetrieval())]
+        # Llamar a Gemini con fallback automático
+        response_text = call_gemini_with_fallback(
+            prompt,
+            model_name='gemini-2.0-flash'  # Nota: este modelo tiene Google Search
         )
-        
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
         
         # Limpiar JSON
         if '```json' in response_text:
@@ -1219,6 +1494,9 @@ def build_baseline_confidence(technical_data, ai_inference, filename):
     artist_from_file = file_metadata.get("artist")
     song_from_file = file_metadata.get("song")
 
+    gemini_access = ai_inference.get("gemini_access", False)
+    tags_source_label = "IA + Parser" if gemini_access else "Solo Parser"
+
     items = [
         {
             "parameter": "📁 Nombre/Archivo",
@@ -1265,12 +1543,15 @@ def build_baseline_confidence(technical_data, ai_inference, filename):
         detected_genre = genre_detected or ("Detectado por Gemini" if artist_from_file else "No detectado")
         
         if detected_genre != "No detectado":
+            ai_engine = ai_inference.get("gemini_status", "unknown")
+            engine_label = "IA (Groq)" if ai_engine == "groq" else ("IA (Gemini)" if ai_inference.get("gemini_access", False) else "Local")
+            source_label = "filename" if genre_from_file else ("ia-groq" if ai_engine == "groq" else ("ia-gemini" if ai_inference.get("gemini_access", False) else "local"))
             items.append({
                 "parameter": "🎸 Género (del Artista)",
                 "value": detected_genre,
                 "confidence": clamp_conf(95.0 if genre_from_file else 85.0 if genre_detected else 75.0),
-                "source": "filename" if genre_from_file else "gemini",
-                "rationale": f"Género del artista {'extraído del filename' if genre_from_file else 'identificado por Gemini desde tags generados'}"
+                "source": source_label,
+                "rationale": f"Género del artista {'extraído del filename' if genre_from_file else f'identificado por {engine_label} desde tags generados'}"
             })
     
     # Agregar información técnica
@@ -1293,15 +1574,15 @@ def build_baseline_confidence(technical_data, ai_inference, filename):
             "parameter": "Mood",
             "value": ai_inference.get("mood", "-"),
             "confidence": clamp_conf(mood_conf),
-            "source": "gemini",
-            "rationale": "Gemini combina hints del filename, BPM/Key y búsqueda web"
+            "source": ("ia-groq" if ai_inference.get("gemini_status") == "groq" else ("ia-gemini" if gemini_access else "local")),
+            "rationale": ("IA (Groq) combina hints del filename, BPM/Key y búsqueda web" if ai_inference.get("gemini_status") == "groq" else ("IA (Gemini) combina hints del filename, BPM/Key y búsqueda web" if gemini_access else "Heurística local basada en BPM/Key y análisis técnico"))
         },
         {
-            "parameter": "Tags (IA)",
+            "parameter": f"Etiquetas ({tags_source_label})",
             "value": ", ".join(ai_inference.get("tags", [])[:8]) or "-",
             "confidence": clamp_conf(tags_conf),
-            "source": "gemini",
-            "rationale": f"Gemini genera {len(ai_inference.get('tags', []))} tags considerando: artista + canción + análisis + búsqueda web"
+            "source": ("ia-groq" if ai_inference.get("gemini_status") == "groq" else ("ia-gemini" if gemini_access else "parser")),
+            "rationale": ((f"IA (Groq) genera {len(ai_inference.get('tags', []))} tags considerando: artista + canción + análisis + búsqueda web") if ai_inference.get("gemini_status") == "groq" else (f"IA (Gemini) genera {len(ai_inference.get('tags', []))} tags considerando: artista + canción + análisis + búsqueda web" if gemini_access else "Parser fusiona tags obligatorios del filename y heurística local sin IA"))
         }
     ])
 
@@ -1313,8 +1594,10 @@ def generate_confidence_report(technical_data, ai_inference):
     filename = technical_data.get("filename") or "Nombre no disponible"
     baseline_items = build_baseline_confidence(technical_data, ai_inference, filename)
 
-    summary = "Pipeline: parseo del filename → análisis técnico (BPM/Key) → Gemini para mood y tags."
-    method = "Fuentes: filename (si existe) + audio + Gemini 2.0 Flash."
+    ai_engine = ai_inference.get("gemini_status", "unknown")
+    engine_label = "IA (Groq)" if ai_engine == "groq" else ("IA (Gemini)" if ai_inference.get("gemini_access", False) else "IA Local")
+    summary = f"Pipeline: parseo del filename → análisis técnico (BPM/Key) → {engine_label} para mood y tags."
+    method = f"Fuentes: filename (si existe) + audio + {engine_label}."
 
     report = {
         "items": baseline_items,
@@ -1322,14 +1605,11 @@ def generate_confidence_report(technical_data, ai_inference):
         "method": method
     }
 
-    # Si no hay API key válida, retornar baseline
-    if not GEMINI_API_KEY or GEMINI_API_KEY in ["tu_api_key_aqui", "", "empty"]:
+    # Si no hay API keys válidas, retornar baseline
+    if not ACTIVE_API_KEYS:
         return report
 
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-
         prompt = f"""
 Genera una tabla de confianza resumida para un beat. Usa SOLO JSON plano.
 Datos disponibles:
@@ -1351,8 +1631,7 @@ Formato EXACTO de salida (sin texto adicional):
 Los valores de confianza deben ser numéricos (0-100). Limita items a 6 máximo.
 """
 
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
+        response_text = call_gemini_with_fallback(prompt, model_name='gemini-2.0-flash')
 
         if '```json' in response_text:
             response_text = response_text.split('```json')[1].split('```')[0].strip()
@@ -1469,8 +1748,6 @@ def validate_bpm_with_gemini(filename, detected_bpm, file_metadata):
         
         # PRIORIDAD 2: Gemini con búsqueda web
         if artist and song:
-            genai.configure(api_key=GEMINI_API_KEY)
-            
             prompt = f"""Busca en internet el BPM exacto de: "{song}" por {artist}
 
 BÚSQUEDAS ESPECÍFICAS:
@@ -1486,9 +1763,7 @@ Ejemplo:
 """
             
             try:
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = model.generate_content(prompt)
-                response_text = response.text.strip()
+                response_text = call_gemini_with_fallback(prompt, model_name='gemini-2.0-flash')
                 
                 if '```json' in response_text:
                     response_text = response_text.split('```json')[1].split('```')[0].strip()
@@ -1536,16 +1811,69 @@ Ejemplo:
         }
 
 
+def should_use_web_search(file_metadata, filename):
+    """
+    Decide si usar búsqueda web según el contexto del beat.
+    Búsqueda web consume más cuota, solo usarla cuando aporte valor real.
+    
+    Returns:
+        bool: True si se debe usar búsqueda web
+    """
+    artist = file_metadata.get('artist', '').strip()
+    song = file_metadata.get('song', '').strip()
+    
+    # Palabras que NO son artistas reales (filtro)
+    non_artist_words = [
+        'dark', 'trap', 'drill', 'type', 'beat', 'instrumental', 'free',
+        'tagged', 'demo', 'hard', 'soft', 'melodic', 'aggressive', 'chill',
+        'ambient', 'emotional', 'sad', 'happy', 'test', 'sample'
+    ]
+    
+    # NO usar búsqueda web si:
+    # 1. No hay artista mencionado
+    if not artist:
+        return False
+    
+    # 2. El "artista" es realmente una palabra descriptiva o tag
+    if artist.lower() in non_artist_words:
+        print(f"⚠️  '{artist}' no es artista real, usando flash-lite sin búsqueda", file=sys.stderr)
+        return False
+    
+    # 3. Es un beat genérico sin artista específico
+    generic_terms = ['type beat', 'instrumental', 'beat', 'prod by', 'free beat']
+    if any(term in filename.lower() for term in generic_terms) and not song:
+        return False
+    
+    # 4. Artista ya está en caché (ya sabemos su estilo)
+    if artist in ARTIST_CACHE:
+        print(f"💾 Artista '{artist}' en caché, usando flash-lite sin búsqueda", file=sys.stderr)
+        return False
+    
+    # SÍ usar búsqueda web si:
+    # 1. Hay artista específico Y canción mencionada (validar longitud mínima)
+    if artist and song and len(artist) > 3 and len(song) > 5:
+        print(f"🌐 Artista '{artist}' + canción '{song}' detectados, usando búsqueda web", file=sys.stderr)
+        return True
+    
+    # 2. Hay artista nuevo (no en caché) que parece legítimo
+    if artist and len(artist) > 3:
+        print(f"🔍 Artista nuevo '{artist}', usando búsqueda web para aprender", file=sys.stderr)
+        return True
+    
+    return False
+
+
 def infer_with_gemini(technical_data):
     """
     Usa la API de Gemini para inferir Mood y generar Tags descriptivos.
     Incluye información completa de audio: LUFS, acordes, spectro, filename.
+    Búsqueda web SELECTIVA: solo cuando aporte valor (artista+canción o artista nuevo).
     Si falla, usa inferencia local.
     """
+    # Estado de acceso a Gemini para UI/tabla
+    gemini_access = False
+    gemini_status = "unknown"
     try:
-        # Configurar API de Gemini
-        genai.configure(api_key=GEMINI_API_KEY)
-        
         # Extraer datos
         bpm = technical_data['bpm']
         key = technical_data['key']
@@ -1561,9 +1889,13 @@ def infer_with_gemini(technical_data):
         # Parsear metadata del nombre
         file_metadata = extract_filename_metadata(filename)
         
-        # Construir prompt ULTRA-MEJORADO con capacidad de búsqueda web
-        prompt = f"""Eres un experto musicólogo, productor musical y crítico especializado en análisis de beats y archivos de audio.
-
+        # Decidir si usar búsqueda web (optimización de cuota)
+        use_web_search = should_use_web_search(file_metadata, filename)
+        
+        # Instrucción de búsqueda web (solo si está habilitada)
+        web_search_instruction = ""
+        if use_web_search:
+            web_search_instruction = """
 ⚠️  INSTRUCCIÓN CRÍTICA: PUEDES BUSCAR EN INTERNET PARA OBTENER INFORMACIÓN PRECISA
 
 Si el nombre del archivo menciona un ARTISTA o una CANCIÓN CONOCIDA:
@@ -1581,6 +1913,11 @@ EJEMPLOS DE BÚSQUEDAS QUE DEBES HACER SI APLICA:
 - "Wizkid Essence genre" → Afrobeat
 
 Esto es CRÍTICO porque el BPM por sí solo no es suficiente para determinar el género real.
+"""
+        
+        # Construir prompt optimizado (con o sin búsqueda web)
+        prompt = f"""Eres un experto musicólogo, productor musical y crítico especializado en análisis de beats y archivos de audio.
+{web_search_instruction}
 
 ╔═══════════════════════════════════════════════════════════════════════════════════════╗
 ║           🎯 NOMBRE DEL ARCHIVO - FUENTE PRINCIPAL DE INFORMACIÓN                    ║
@@ -1739,11 +2076,11 @@ INTERPRETACIÓN TÉCNICA:
 - Artista, canción, key y BPM del filename DEBEN estar en los tags
 - Cuanta más información encuentres en internet, más tags génera (hasta 30)
 
-TAGS ADICIONALES A CONSIDERAR (si aplica):
-- Artistas similares / colaboradores
-- Plataformas populares (SoundCloud, Spotify, YouTube)
-- Productores o beatmakers del mismo estilo
-- Movimientos musicales relacionados
+            Tags generados:
+            ["Travis Scott", "Travis Scott Type", "SICKO MODE", "Trap", "Hip-Hop", 
+             "G Minor", "155 BPM", "Dark", "Atmospheric", "Psychedelic Trap", 
+             "Autotune Ready", "Houston", "Cactus Jack", "Heavy 808s", "Reversed Sounds",
+             "Beat Switch", "High Energy", "Commercial", "Rage", "Astroworld"]
 - Características técnicas de mezcla (Stereo, Mono, Spatial Audio)
 - Ubicación geográfica / región musical
 - Época o era musical
@@ -1751,100 +2088,114 @@ TAGS ADICIONALES A CONSIDERAR (si aplica):
 - Certificaciones o logros del artista (Grammy, Chart, Platinum)
 """
         
-        # Intentar llamar a Gemini CON BÚSQUEDA WEB HABILITADA
-        try:
-            # Usar Gemini 2.0 Flash con búsqueda web
-            model = genai.GenerativeModel(
-                'gemini-2.0-flash',
-                tools=[genai.protos.Tool(google_search_retrieval=genai.protos.GoogleSearchRetrieval())]
-            )
-            
-            # Hacer la llamada con búsqueda web activada
-            response = model.generate_content(
-                prompt,
-                safety_settings=[
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "threshold": "BLOCK_NONE"
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "threshold": "BLOCK_NONE"
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "threshold": "BLOCK_NONE"
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "threshold": "BLOCK_NONE"
-                    }
-                ]
-            )
-            response_text = response.text.strip()
-            
-            # Log para verificar que usó búsqueda
-            if "search" in response_text.lower() or response.candidates[0].finish_reason == "STOP":
-                print(f"🌐 Gemini usó búsqueda web para respuesta mejorada", file=sys.stderr)
-            
-            # Intentar extraer JSON si está envuelto en markdown
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0].strip()
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].split('```')[0].strip()
-            
-            ai_data = json.loads(response_text)
-            return ai_data
-        
-        except Exception as e:
-            # Si hay error de API de búsqueda, intentar sin búsqueda web
-            if "google_search" in str(e).lower() or "search" in str(e).lower():
-                print(f"⚠️  Búsqueda web no disponible. Intentando sin búsqueda...", file=sys.stderr)
-                try:
-                    model = genai.GenerativeModel('gemini-2.0-flash')
-                    response = model.generate_content(prompt)
-                    response_text = response.text.strip()
-                    
-                    if '```json' in response_text:
-                        response_text = response_text.split('```json')[1].split('```')[0].strip()
-                    elif '```' in response_text:
-                        response_text = response_text.split('```')[1].split('```')[0].strip()
-                    
-                    ai_data = json.loads(response_text)
-                    return ai_data
-                except:
+        # Datos de IA (puede venir de Groq o Gemini)
+        ai_data = None
+
+        # 1) Groq como primario si está habilitado
+        if USE_GROQ_PRIMARY:
+            try:
+                print(f"🚀 Usando Groq (Llama3) como primario", file=sys.stderr)
+                print(f"📝 PROMPT ENVIADO A GROQ ({len(prompt)} caracteres):", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                print(prompt[:2000], file=sys.stderr)  # Primeros 2000 caracteres
+                print(f"\n... (total {len(prompt)} caracteres) ...\n", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                response_text = call_groq_with_json(prompt)
+                ai_data = json.loads(response_text)
+                print(f"📦 RESPUESTA GROQ (JSON):", file=sys.stderr)
+                print(json.dumps(ai_data, indent=2, ensure_ascii=False), file=sys.stderr)
+                gemini_access = True  # Señal de que hubo IA
+                gemini_status = "groq"
+            except Exception as e:
+                print(f"⚠️  Groq falló ({e}), intentando Gemini...", file=sys.stderr)
+
+        # 2) Gemini (solo si no tenemos ai_data todavía)
+        if ai_data is None:
+            try:
+                if use_web_search:
+                    print(f"📡 Usando Gemini 2.0 Flash + búsqueda web", file=sys.stderr)
+                    try:
+                        # Intentar con herramienta de búsqueda si el SDK lo soporta
+                        model = genai.GenerativeModel(
+                            'gemini-2.0-flash',
+                            tools=[genai.protos.Tool(google_search_retrieval=genai.protos.GoogleSearchRetrieval())]
+                        )
+                    except AttributeError:
+                        print("ℹ️  Versión del SDK sin 'protos'; usando Gemini sin búsqueda web", file=sys.stderr)
+                        model = genai.GenerativeModel('gemini-2.0-flash')
+                else:
+                    print(f"⚡ Usando Gemini Flash-lite sin búsqueda web", file=sys.stderr)
+                    model = genai.GenerativeModel('gemini-2.0-flash-lite')
+
+                response = model.generate_content(
+                    prompt,
+                    safety_settings=[
+                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"}
+                    ]
+                )
+                response_text = response.text.strip()
+
+                if use_web_search and ("search" in response_text.lower() or response.candidates[0].finish_reason == "STOP"):
+                    print(f"🌐 Gemini usó búsqueda web para respuesta mejorada", file=sys.stderr)
+
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0].strip()
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0].strip()
+
+                ai_data = json.loads(response_text)
+                gemini_access = True
+                gemini_status = "ok"
+            except Exception as e:
+                if use_web_search and ("google_search" in str(e).lower() or "search" in str(e).lower()):
+                    print(f"⚠️  Búsqueda web no disponible. Intentando sin búsqueda...", file=sys.stderr)
+                    try:
+                        model = genai.GenerativeModel('gemini-2.0-flash')
+                        response = model.generate_content(prompt)
+                        response_text = response.text.strip()
+                        if '```json' in response_text:
+                            response_text = response_text.split('```json')[1].split('```')[0].strip()
+                        elif '```' in response_text:
+                            response_text = response_text.split('```')[1].split('```')[0].strip()
+                        ai_data = json.loads(response_text)
+                        gemini_access = True
+                        gemini_status = "ok"
+                    except Exception as e2:
+                        print(f"⚠️  Error en Gemini: {e2}. Usando inferencia local...", file=sys.stderr)
+                        gemini_access = False
+                        gemini_status = "error"
+                        ai_data = infer_mood_local(technical_data)
+                else:
+                    print(f"⚠️  Error en Gemini: {e}. Usando inferencia local...", file=sys.stderr)
+                    gemini_access = False
+                    gemini_status = "error"
                     ai_data = infer_mood_local(technical_data)
-            # Si hay error de cuota o conexión, usar inferencia local
-            elif "quota" in str(e).lower() or "429" in str(e):
-                print("⚠️  Cuota de API excedida. Usando inferencia local...", file=sys.stderr)
-                ai_data = infer_mood_local(technical_data)
-            else:
-                # Para otros errores también usar fallback local
-                print(f"⚠️  Error en Gemini: {e}. Usando inferencia local...", file=sys.stderr)
-                ai_data = infer_mood_local(technical_data)
-        
-        # ==========================================
-        # COMBINAR TAGS DE IA CON TAGS OBLIGATORIOS
-        # ==========================================
-        # Extraer metadata del filename desde technical_data
+        # Combinar tags obligatorios del filename con los de IA (camino exitoso)
         filename = technical_data.get('filename', '')
-        file_metadata = extract_filename_metadata(filename)
-        
-        # Extraer tags obligatorios del filename
+        # file_metadata ya fue calculado arriba
         mandatory_tags = extract_mandatory_tags_from_filename(file_metadata, technical_data)
-        
-        # Tags generados por IA
-        ai_tags = ai_data.get('tags', [])
-        
-        # Combinar con prioridad (mandatory tags primero)
+        ai_tags = ai_data.get('tags', []) if isinstance(ai_data, dict) else []
         final_tags = merge_tags_with_priority(mandatory_tags, ai_tags, max_tags=25)
-        
+
         print(f"📊 Tags obligatorios del filename: {mandatory_tags}", file=sys.stderr)
         print(f"🤖 Tags generados por IA: {ai_tags[:5]}...", file=sys.stderr)
         print(f"✅ Tags finales combinados: {len(final_tags)} tags", file=sys.stderr)
         
-        # Actualizar ai_data con tags combinados
+        # Actualizar ai_data con tags combinados y fuente
         ai_data['tags'] = final_tags
+        ai_data['tags_source'] = "IA + Parser" if gemini_access else "Solo Parser"
+        ai_data['gemini_access'] = gemini_access
+        ai_data['gemini_status'] = gemini_status
+        
+        print(f"🎯 DATOS FINALES QUE SE RETORNAN AL CLIENTE:", file=sys.stderr)
+        print(f"   - mood: {ai_data.get('mood')}", file=sys.stderr)
+        print(f"   - genre: {ai_data.get('genre')}", file=sys.stderr)
+        print(f"   - tags: {len(ai_data.get('tags', []))} tags", file=sys.stderr)
+        print(f"   - gemini_access: {gemini_access}", file=sys.stderr)
+        print(f"   - gemini_status: {gemini_status}", file=sys.stderr)
         
         return ai_data
     
@@ -1860,6 +2211,9 @@ TAGS ADICIONALES A CONSIDERAR (si aplica):
         ai_tags = ai_data.get('tags', [])
         final_tags = merge_tags_with_priority(mandatory_tags, ai_tags, max_tags=25)
         ai_data['tags'] = final_tags
+        ai_data['tags_source'] = "Solo Parser"
+        ai_data['gemini_access'] = False
+        ai_data['gemini_status'] = "error"
         
         return ai_data
 
@@ -1959,22 +2313,563 @@ def infer_mood_local(technical_data):
         "scale_explanation": scale_explanation
     }
 
+
+# =====================================================
+# NUEVAS FUNCIONES - SISTEMA MEJORADO V2
+# =====================================================
+
+def suggest_key_from_notes(detected_notes, chroma_values):
+    """Sugiere escala musical basada en notas detectadas."""
+    note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    root_idx = np.argmax(chroma_values)
+    root_note = note_names[root_idx]
+    
+    third_major_idx = (root_idx + 4) % 12
+    third_minor_idx = (root_idx + 3) % 12
+    
+    major_strength = chroma_values[third_major_idx]
+    minor_strength = chroma_values[third_minor_idx]
+    
+    scale_type = "Minor" if minor_strength > major_strength else "Major"
+    return f"{root_note} {scale_type}"
+
+
+def analyze_audio_technical_simple(audio_path):
+    """Análisis técnico simplificado del audio."""
+    try:
+        y, sr = librosa.load(audio_path, sr=22050, duration=30)
+        chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+        note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        
+        chroma_mean = np.mean(chroma, axis=1)
+        top_notes_idx = np.argsort(chroma_mean)[-5:]
+        detected_notes = [note_names[idx] for idx in top_notes_idx]
+        
+        suggested_key = suggest_key_from_notes(detected_notes, chroma_mean)
+        
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        calculated_bpm = int(tempo)
+        
+        chord_progression = []
+        frames_per_section = chroma.shape[1] // 4
+        for i in range(4):
+            start = i * frames_per_section
+            end = start + frames_per_section
+            section_chroma = np.mean(chroma[:, start:end], axis=1)
+            root_idx = np.argmax(section_chroma)
+            chord_progression.append(note_names[root_idx])
+        
+        return {
+            "detected_notes": detected_notes,
+            "chord_progression": chord_progression,
+            "suggested_key": suggested_key,
+            "suggested_key_confidence": 50,
+            "calculated_bpm": calculated_bpm,
+            "calculated_bpm_confidence": 50
+        }
+    except Exception as e:
+        print(f"⚠️  Error análisis técnico: {e}", file=sys.stderr)
+        return {
+            "detected_notes": [],
+            "chord_progression": [],
+            "suggested_key": None,
+            "suggested_key_confidence": 0,
+            "calculated_bpm": None,
+            "calculated_bpm_confidence": 0
+        }
+
+
+def determine_mood_genre_by_bpm_key(bpm, key):
+    """Determina mood y género probable por BPM y KEY."""
+    mood = "Unknown"
+    genre = "Unknown"
+    
+    if bpm and key:
+        # Determinar mood por KEY
+        if "Minor" in key or "m" in key.lower():
+            mood = "Dark"
+        else:
+            mood = "Uplifting"
+        
+        # Determinar género por BPM
+        if 60 <= bpm < 90:
+            genre = "Hip-Hop/Trap"
+        elif 90 <= bpm < 110:
+            genre = "Lo-Fi/Chill"
+        elif 110 <= bpm < 128:
+            genre = "Pop/R&B"
+        elif 128 <= bpm < 140:
+            genre = "House/Dance"
+        elif 140 <= bpm <= 160:
+            genre = "Trap/Dubstep"
+        elif 160 < bpm <= 180:
+            genre = "Drum & Bass"
+        else:
+            genre = "Electronic"
+    
+    return mood, genre
+
+
+def query_gemini_with_full_context(filename, parsed_data, audio_analysis):
+    """Consulta Gemini API con contexto completo. OPTIMIZADO PARA TOKENS + REQUESTS.
+    
+    ⚠️  ESTRATEGIA ACTUAL:
+    - Antes: 30-50 tags → 1,600 tokens → 625 beats/día
+    - Ahora: 5-10 tags → ~800 tokens → 1,000 beats/día
+    - Plus: Caché de artistas → 0 requests a Gemini para artistas conocidos
+    
+    CACHÉ INTELIGENTE:
+    ✅ Si artista está en ARTIST_CACHE → Respuesta instantánea (0 Gemini requests)
+    ✅ Si artista nuevo → Consulta Gemini una vez, se cachea automáticamente
+    ✅ Reducción: Beats/día puede llegar a 1,500 (sin límite de tokens)
+    
+    TAGS de Gemini (5-10 PRINCIPALES):
+    ✅ Mood, Estilo artista, Subgénero, Vibe único
+    
+    TAGS automáticos (15-20):
+    ✅ BPM, KEY, Type Beat, Técnicos, Contexto
+    
+    Total: 20-30 tags finales
+    """
+    artist_raw = parsed_data.get('reference_artist') or 'Unknown'
+    
+    # 🔍 DETECTAR MÚLTIPLES ARTISTAS (Travis Scott x Kanye, Drake feat The Weeknd, etc.)
+    # Separadores comunes: x, X, feat, feat., ft, ft., &, and
+    artists_list = re.split(r'\s+(?:x|X|feat\.?|ft\.?|&|and)\s+', artist_raw)
+    artists_list = [a.strip() for a in artists_list if a.strip()]
+    
+    print(f"🎤 Artistas detectados: {artists_list}", file=sys.stderr)
+    
+    # 💾 VERIFICAR SI TODOS LOS ARTISTAS ESTÁN EN CACHÉ
+    all_in_cache = all(artist in ARTIST_CACHE for artist in artists_list)
+    
+    if all_in_cache and len(artists_list) > 0:
+        print(f"💾 Caché hit completo para: {', '.join(artists_list)}", file=sys.stderr)
+        
+        # COMBINAR INFO DE MÚLTIPLES ARTISTAS
+        combined_genres = []
+        combined_subgenres = []
+        combined_styles = []
+        combined_tags = []
+        
+        for artist in artists_list:
+            cached = ARTIST_CACHE[artist]
+            combined_genres.append(cached['genre'])
+            combined_subgenres.extend(cached['subgenres'])
+            combined_styles.append(cached['style'])
+            combined_tags.extend(cached['tags_example'][:4])  # Max 4 tags por artista
+        
+        # Deduplicate
+        combined_subgenres = list(set(combined_subgenres))
+        combined_tags = list(set(combined_tags))[:8]  # Max 8 tags totales
+        
+        return {
+            "key": parsed_data.get('key') or audio_analysis.get('suggested_key'),
+            "key_confidence": parsed_data.get('key_confidence', 70),
+            "key_validated": True,
+            "artist_known": True,
+            "artist_info": {
+                "genre": ' + '.join(set(combined_genres)),  # "Hip-Hop + R&B"
+                "subgenres": combined_subgenres,
+                "style": ' + '.join(combined_styles)  # "Dark, aggressive + Smooth, melodic"
+            },
+            "mood": "Dark" if any("dark" in s.lower() or "melancholic" in s.lower() for s in combined_styles) else "Energetic",
+            "type": parsed_data.get('beat_type') or "Beat",
+            "genre": combined_genres[0].split('/')[0],  # Primer género del primer artista
+            "subgenres": combined_subgenres,
+            "tags": combined_tags,
+            "description": f"Blend of {' and '.join(artists_list)} styles. {combined_styles[0] if combined_styles else 'Versatile'} production perfect for collaborative tracks."
+        }
+    
+    if not GEMINI_API_KEY or GEMINI_API_KEY in ['empty', 'tu_api_key_aqui']:
+        return {
+            "key": audio_analysis.get('suggested_key'),
+            "key_confidence": 50,
+            "key_validated": False,
+            "artist_known": False,
+            "artist_info": None,
+            "mood": "Unknown",
+            "type": "Beat",
+            "genre": "Unknown",
+            "subgenres": [],
+            "tags": [],
+            "description": ""
+        }
+    
+    try:
+        # Determinar mood/genre automático por BPM y KEY
+        auto_mood, auto_genre = determine_mood_genre_by_bpm_key(
+            parsed_data.get('bpm') or audio_analysis.get('calculated_bpm'),
+            parsed_data.get('key') or audio_analysis.get('suggested_key')
+        )
+        
+        prompt = f"""Eres un experto en música urbana latina, trap, reggaeton, hip-hop y géneros contemporáneos.
+
+📁 BEAT ANALYSIS REQUEST:
+- Filename: {parsed_data.get('beat_name')}
+- Reference Artist: {parsed_data.get('reference_artist') or 'Unknown'}
+- BPM: {parsed_data.get('bpm')}
+- Key: {parsed_data.get('key')}
+- Type: {parsed_data.get('beat_type') or 'N/A'}
+
+🎯 TAREA CRÍTICA:
+1. 🎤 IDENTIFICA AL ARTISTA: Si reconoces al artista, usa tu CONOCIMIENTO REAL sobre:
+   - Su GÉNERO REAL (ejemplo: Anuel AA = Trap Latino/Reggaeton, NO Pop/R&B)
+   - Subgéneros específicos que hace
+   - Estilo de producción característico (808s, dembow, melodic, etc)
+   - Región/país de origen
+   - Movimiento musical al que pertenece (Real Hasta la Muerte, OVO Sound, Cactus Jack, etc)
+
+2. 🔍 VALIDA LA KEY: Verifica si {parsed_data.get('key') or audio_analysis.get('suggested_key')} es correcta
+   (prioridad: filename > análisis de audio)
+
+3. 🏷️ GENERA 10-15 TAGS INTELIGENTES:
+   ✅ OBLIGATORIOS (si aplican):
+      - Nombre del artista (ej: "Anuel AA", "Bad Bunny")
+      - "Artist Type" o "Artist Style"
+      - GÉNERO REAL del artista (usa tu conocimiento, NO adivines por BPM)
+      - Subgénero(s) que hace el artista
+      - Movimiento/label del artista (ej: "Real Hasta la Muerte", "Rimas Entertainment")
+      - País/región (ej: "Puerto Rico", "Colombia", "Argentina")
+   
+   ✅ ADICIONALES (basados en conocimiento):
+      - Características de producción del artista (808s, dembow, drill, melodic, etc)
+      - Mood/vibe del artista (dark, aggressive, melodic, romantic, etc)
+      - Colaboradores típicos si hay múltiples artistas
+      - Uso/contexto (Freestyle, Vocal Ready, Club, Street, etc)
+   
+   ❌ NO INCLUYAS: BPM, Key, "Type Beat" (se agregan automáticamente)
+
+4. 📝 DESCRIPCIÓN BREVE (2-3 líneas):
+   - Menciona el estilo característico del artista
+   - Contexto del beat
+   - Para qué tipo de flow/letra es ideal
+
+EJEMPLO REAL:
+Si el artista es "Anuel AA":
+- Genre: "Trap Latino" (NO "Pop")
+- Subgenres: ["Reggaeton", "Latin Trap", "Urban Latino"]
+- Tags: ["Anuel AA", "Anuel AA Type", "Real Hasta la Muerte", "Puerto Rico", "Trap Latino", "Street", "Dark", "Aggressive", "808s Heavy", "Latin Urban", "Dembow Elements"]
+- Description: "Estilo característico de Anuel AA con elementos de trap latino y reggaeton. Producción dark y agresiva con 808s pesados, perfecto para letras de calle y estilo Real Hasta la Muerte."
+
+📋 RETORNA EXACTAMENTE ESTE JSON (sin ```json, sin markdown):
+{{
+  "key": "X Minor/Major",
+  "key_confidence": 95,
+  "key_validated": true,
+  "artist_known": true/false,
+  "artist_info": {{"genre":"GÉNERO REAL", "subgenres":["subgenre1", "subgenre2"], "style":"estilo característico"}},
+  "mood": "Dark/Energetic/Melancholic/etc",
+  "type": "{parsed_data.get('beat_type') or 'Beat'}",
+  "genre": "GÉNERO PRINCIPAL REAL DEL ARTISTA",
+  "subgenres": ["subgenre1", "subgenre2"],
+  "tags": ["tag1", "tag2", ..., "tag10-15"],
+  "description": "Descripción de 2-3 líneas"
+}}"""
+        
+        # 🚀 Intentar con Groq primero si está habilitado
+        response_text = None
+        if USE_GROQ_PRIMARY:
+            try:
+                print(f"🚀 V2: Usando Groq (Llama3) como primario", file=sys.stderr)
+                response_text = call_groq_with_json(prompt)
+                print(f"✅ Groq respondió exitosamente", file=sys.stderr)
+                print(f"📄 Groq response (primeros 300 chars): {response_text[:300]}", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️  Groq falló ({e}), intentando Gemini...", file=sys.stderr)
+                response_text = None
+        
+        # Si Groq falló o no está habilitado, usar Gemini
+        if response_text is None:
+            print(f"📡 V2: Usando Gemini como fallback", file=sys.stderr)
+            response_text = call_gemini_with_fallback(prompt, model_name='gemini-2.0-flash-lite')
+            print(f"📄 Gemini response (primeros 200 chars): {response_text[:200]}", file=sys.stderr)
+        
+        if '```json' in response_text:
+            response_text = response_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in response_text:
+            response_text = response_text.split('```')[1].split('```')[0].strip()
+        
+        result = json.loads(response_text)
+        print(f"✅ JSON parseado correctamente", file=sys.stderr)
+        
+        # 💾 CACHEAR CADA ARTISTA INDIVIDUAL (para collabs como "Travis x Kanye")
+        if result.get('artist_known') and len(artists_list) > 0:
+            for individual_artist in artists_list:
+                if individual_artist not in ARTIST_CACHE:
+                    print(f"💾 Cacheando artista nuevo: {individual_artist}", file=sys.stderr)
+                    ARTIST_CACHE[individual_artist] = {
+                        "genre": result.get('genre', 'Unknown'),
+                        "subgenres": result.get('subgenres', []),
+                        "style": result.get('artist_info', {}).get('style', '') if result.get('artist_info') else '',
+                        "tags_example": result.get('tags', [])[:8]  # Guardar max 8 tags
+                    }
+                else:
+                    print(f"💾 Artista ya en caché: {individual_artist}", file=sys.stderr)
+        
+        return result
+    except Exception as e:
+        print(f"⚠️  Gemini error: {e}", file=sys.stderr)
+        print(f"⚠️  Error type: {type(e).__name__}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        # Fallback con mood/genre automático
+        auto_mood, auto_genre = determine_mood_genre_by_bpm_key(
+            parsed_data.get('bpm') or audio_analysis.get('calculated_bpm'),
+            parsed_data.get('key') or audio_analysis.get('suggested_key')
+        )
+        return {
+            "key": audio_analysis.get('suggested_key'),
+            "key_confidence": 50,
+            "key_validated": False,
+            "artist_known": False,
+            "artist_info": None,
+            "mood": auto_mood,
+            "type": "Beat",
+            "genre": auto_genre,
+            "subgenres": [],
+            "tags": [],
+            "description": ""
+        }
+
+
+def generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, bpm, key):
+    """Genera tags automáticos inteligentes basados en todos los datos.
+    PRIORIZA tags de IA (Groq/Gemini) sobre tags genéricos."""
+    tags = set()
+    
+    # 🚀 PRIORIDAD 1: TAGS DE IA (GROQ/GEMINI) - Los más importantes
+    ai_tags = gemini_analysis.get('tags', [])
+    if ai_tags and len(ai_tags) > 0:
+        print(f"✅ Agregando {len(ai_tags)} tags de IA: {ai_tags[:5]}...", file=sys.stderr)
+        for tag in ai_tags:
+            if tag and isinstance(tag, str) and len(tag) > 1:
+                tags.add(tag)
+    
+    # 🎤 PRIORIDAD 2: ARTISTA (si no está en tags de IA)
+    reference_artist = parsed_data.get('reference_artist')
+    if reference_artist and reference_artist not in tags:
+        tags.add(reference_artist)
+        tags.add(f"{reference_artist} Type Beat")
+        tags.add(f"{reference_artist} Style")
+    
+    # 🎹 PRIORIDAD 3: KEY y BPM (técnicos obligatorios)
+    if key:
+        tags.add(key)  # "E Minor" completo
+        key_short = key.split()[0]  # "D Minor" -> "D"
+        if "Minor" in key:
+            tags.add(f"{key_short}m")
+            tags.add("Minor")
+        else:
+            tags.add(key_short)
+            tags.add("Major")
+    
+    # BPM (solo el valor, sin tags genéricos que diluyen)
+    if bpm:
+        tags.add(f"{bpm}BPM")
+        # Rangos amplios solo si NO hay tags de IA
+        if not ai_tags:
+            tags.add(f"{int(bpm/10)*10} BPM")
+    
+    # 📦 PRIORIDAD 4: METADATOS DEL ARCHIVO (útiles pero no críticos)
+    # Nombre del beat
+    beat_name = parsed_data.get('beat_name')
+    if beat_name and beat_name not in tags:
+        tags.add(beat_name)
+    
+    # Type Beat indicators
+    if parsed_data.get('beat_type'):
+        tags.add("Type Beat")
+    
+    # Demo/Tagged
+    if parsed_data.get('is_demo'):
+        tags.add("Demo")
+    if parsed_data.get('is_tagged'):
+        tags.add("Tagged")
+        tags.add("Watermarked")
+    
+    # 🎚️ PRIORIDAD 5: TAGS GENÉRICOS DE PRODUCCIÓN (solo si NO hay tags de IA suficientes)
+    if len(tags) < 15:
+        tags.add("Instrumental")
+        tags.add("Beat")
+        tags.add("Production")
+        tags.add("Commercial")
+        tags.add("Professional")
+        tags.add("Vocal Ready")
+        tags.add("Production Ready")
+        tags.add("Freestyle")
+        tags.add("Original")
+    
+    # Retornar lista ordenada (tags de IA primero)
+    final_tags = []
+    # Primero los tags de IA
+    for tag in ai_tags:
+        if tag and tag not in final_tags:
+            final_tags.append(tag)
+    # Luego el resto
+    for tag in tags:
+        if tag and tag not in final_tags:
+            final_tags.append(tag)
+    
+    print(f"🏷️  Tags finales combinados: {len(final_tags)} tags", file=sys.stderr)
+    print(f"   🚀 De IA: {len(ai_tags)}, 📦 Automáticos: {len(final_tags) - len(ai_tags)}", file=sys.stderr)
+    
+    return final_tags[:30]  # Máximo 30 tags
+
+
+def combine_all_analysis(parsed_data, audio_analysis, gemini_analysis):
+    """Combina análisis con sistema de confianza."""
+    result = {}
+    
+    # KEY
+    if parsed_data.get('key') and parsed_data.get('key_confidence', 0) >= 95:
+        result['key'] = parsed_data['key']
+        result['key_confidence'] = parsed_data['key_confidence']
+        result['key_source'] = 'filename'
+        result['key_verified'] = True
+    elif gemini_analysis.get('key') and gemini_analysis.get('key_validated'):
+        result['key'] = gemini_analysis['key']
+        result['key_confidence'] = gemini_analysis.get('key_confidence', 70)
+        result['key_source'] = 'ai_validation'
+        result['key_verified'] = True
+    elif audio_analysis.get('suggested_key'):
+        result['key'] = audio_analysis['suggested_key']
+        result['key_confidence'] = 50
+        result['key_source'] = 'audio_analysis'
+        result['key_verified'] = False
+        result['key_warning'] = 'Escala sugerida, verifica'
+    else:
+        result['key'] = None
+        result['key_confidence'] = 0
+    
+    # BPM
+    if parsed_data.get('bpm') and parsed_data.get('bpm_confidence', 0) >= 95:
+        result['bpm'] = parsed_data['bpm']
+        result['bpm_confidence'] = parsed_data['bpm_confidence']
+        result['bpm_source'] = 'filename'
+        result['bpm_verified'] = True
+    elif audio_analysis.get('calculated_bpm'):
+        result['bpm'] = audio_analysis['calculated_bpm']
+        result['bpm_confidence'] = 50
+        result['bpm_source'] = 'audio_analysis'
+        result['bpm_verified'] = False
+        result['bpm_warning'] = 'BPM calculado, verifica'
+    else:
+        result['bpm'] = None
+        result['bpm_confidence'] = 0
+    
+    # Mood/Genre automático si Gemini no los proporcionó
+    mood = gemini_analysis.get('mood', 'Unknown')
+    genre = gemini_analysis.get('genre', 'Unknown')
+    if mood == "Unknown" or genre == "Unknown":
+        auto_mood, auto_genre = determine_mood_genre_by_bpm_key(result.get('bpm'), result.get('key'))
+        if mood == "Unknown":
+            mood = auto_mood
+        if genre == "Unknown":
+            genre = auto_genre
+    
+    # Otros
+    result['beat_name'] = parsed_data.get('beat_name')
+    result['reference_artist'] = parsed_data.get('reference_artist')
+    result['beat_type'] = parsed_data.get('beat_type') or gemini_analysis.get('type')
+    result['mood'] = mood
+    result['genre'] = genre
+    result['subgenres'] = gemini_analysis.get('subgenres', [])
+    result['description'] = gemini_analysis.get('description', '')
+    result['is_demo'] = parsed_data.get('is_demo', False)
+    result['is_tagged'] = parsed_data.get('is_tagged', False)
+    
+    # Generar tags inteligentes combinando todo
+    result['tags'] = generate_auto_tags(parsed_data, audio_analysis, gemini_analysis, result.get('bpm'), result.get('key'))
+    
+    # Info del artista (si Gemini lo conoce)
+    result['artist_known'] = gemini_analysis.get('artist_known', False)
+    result['artist_info'] = gemini_analysis.get('artist_info')
+    
+    return result
+
+
+def analyze_beat_complete_v2(audio_path, filename):
+    """Análisis completo con nuevo sistema mejorado."""
+    print(f"🔍 Analizando: {filename}", file=sys.stderr)
+    
+    # Parser
+    if PARSER_AVAILABLE:
+        parsed_data = parse_filename(filename)
+        print(f"✅ Parser: BPM={parsed_data.get('bpm')}, KEY={parsed_data.get('key')}", file=sys.stderr)
+    else:
+        parsed_data = {'beat_name': filename, 'bpm': None, 'key': None, 'bpm_confidence': 0, 'key_confidence': 0}
+    
+    # Audio
+    print(f"🎵 Analizando audio...", file=sys.stderr)
+    audio_analysis = analyze_audio_technical_simple(audio_path)
+    print(f"✅ Audio: KEY={audio_analysis.get('suggested_key')}", file=sys.stderr)
+    
+    # Gemini
+    print(f"🤖 Consultando Gemini...", file=sys.stderr)
+    gemini_analysis = query_gemini_with_full_context(filename, parsed_data, audio_analysis)
+    print(f"✅ Gemini: KEY={gemini_analysis.get('key')}, Mood={gemini_analysis.get('mood')}", file=sys.stderr)
+    
+    # Combinar
+    final_result = combine_all_analysis(parsed_data, audio_analysis, gemini_analysis)
+    print(f"✅ Análisis completo", file=sys.stderr)
+    return final_result
+
+
 def main():
     """
-    Función principal: orquesta el análisis y retorna JSON.
-    Invocación: python3 analyze_beat_ai.py <ruta_audio> [nombre_archivo]
+    Función principal mejorada con nuevo sistema V2.
+    Invocación: python3 analyze_beat_ai.py <ruta_audio> [nombre_archivo] [--v2]
     """
     try:
         # Validar argumentos
         if len(sys.argv) < 2:
-            raise ValueError("Uso: python3 analyze_beat_ai.py <ruta_audio> [nombre_archivo]")
+            raise ValueError("Uso: python3 analyze_beat_ai.py <ruta_audio> [nombre_archivo] [--v2]")
         
         audio_path = sys.argv[1]
-        filename = sys.argv[2] if len(sys.argv) > 2 else os.path.basename(audio_path)
+        filename = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith('--') else os.path.basename(audio_path)
+        use_v2 = '--v2' in sys.argv
         
         # Validar que el archivo existe
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Archivo no encontrado: {audio_path}")
+        
+        # USAR SISTEMA V2 (NUEVO)
+        if use_v2:
+            print("🚀 Usando sistema mejorado V2", file=sys.stderr)
+            v2_result = analyze_beat_complete_v2(audio_path, filename)
+            
+            result = {
+                "status": "success",
+                "version": "v2",
+                "beat_name": v2_result.get('beat_name'),
+                "reference_artist": v2_result.get('reference_artist'),
+                "beat_type": v2_result.get('beat_type'),
+                "bpm": v2_result.get('bpm'),
+                "bpm_confidence": v2_result.get('bpm_confidence', 0),
+                "bpm_source": v2_result.get('bpm_source'),
+                "bpm_verified": v2_result.get('bpm_verified', False),
+                "bpm_warning": v2_result.get('bpm_warning'),
+                "key": v2_result.get('key'),
+                "key_confidence": v2_result.get('key_confidence', 0),
+                "key_source": v2_result.get('key_source'),
+                "key_verified": v2_result.get('key_verified', False),
+                "key_warning": v2_result.get('key_warning'),
+                "mood": v2_result.get('mood'),
+                "genre": v2_result.get('genre'),
+                "subgenres": v2_result.get('subgenres', []),
+                "tags": v2_result.get('tags', []),
+                "description": v2_result.get('description'),
+                "is_demo": v2_result.get('is_demo', False),
+                "is_tagged": v2_result.get('is_tagged', False),
+                "filename": filename
+            }
+            
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return
+        
+        # SISTEMA LEGACY (COMPATIBLE CON SERVIDOR ACTUAL)
+        print("📊 Usando sistema legacy (compatible)", file=sys.stderr)
         
         # FASE 1: Análisis técnico
         technical_data = extract_technical_features(audio_path, filename)
@@ -1982,10 +2877,10 @@ def main():
         # FASE 2: Inferencia con IA
         ai_inference = infer_with_gemini(technical_data)
 
-        # FASE 3: Tabla de confianza explicable
+        # FASE 3: Tabla de confianza
         confidence_report = generate_confidence_report(technical_data, ai_inference)
         
-        # Construir respuesta final - convertir tipos de NumPy a Python nativo
+        # Construir respuesta final
         result = {
             "status": "success",
             "technical_data": {
@@ -2006,6 +2901,9 @@ def main():
             "ai_inference": {
                 "mood": str(ai_inference.get("mood", "Unknown")),
                 "tags": list(ai_inference.get("tags", [])),
+                "tags_source": str(ai_inference.get("tags_source", "Solo Parser")),
+                "gemini_access": bool(ai_inference.get("gemini_access", False)),
+                "gemini_status": str(ai_inference.get("gemini_status", "not_used")),
                 "chord_progression": list(ai_inference.get("chord_progression", [])),
                 "scale_explanation": str(ai_inference.get("scale_explanation", ""))
             },

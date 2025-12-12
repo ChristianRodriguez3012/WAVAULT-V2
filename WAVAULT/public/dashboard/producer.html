@@ -535,6 +535,95 @@
     let aiAnalysisData = null;
     let uploadedCover = null;
 
+    // Sistema de notificaciones
+    function showNotification(message, type = 'info') {
+      // Crear o reutilizar contenedor de notificaciones
+      let container = document.getElementById('notificationContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'notificationContainer';
+        container.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 10000;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        `;
+        document.body.appendChild(container);
+      }
+
+      // Crear notificación
+      const notification = document.createElement('div');
+      const colors = {
+        success: { bg: '#10b981', icon: '✓' },
+        error: { bg: '#ef4444', icon: '✕' },
+        warning: { bg: '#f59e0b', icon: '⚠' },
+        info: { bg: '#6366f1', icon: 'ℹ' }
+      };
+      const color = colors[type] || colors.info;
+
+      notification.style.cssText = `
+        background: white;
+        color: #1e293b;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 300px;
+        max-width: 400px;
+        animation: slideIn 0.3s ease;
+        border-left: 4px solid ${color.bg};
+      `;
+
+      notification.innerHTML = `
+        <div style="width: 32px; height: 32px; background: ${color.bg}; border-radius: 50%; display: grid; place-items: center; color: white; font-weight: bold; flex-shrink: 0;">
+          ${color.icon}
+        </div>
+        <p style="margin: 0; flex: 1; font-size: 0.9rem; line-height: 1.4;">${message}</p>
+      `;
+
+      container.appendChild(notification);
+
+      // Auto-remover después de 5 segundos
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+      }, 5000);
+    }
+
+    // Agregar estilos de animación
+    if (!document.getElementById('notificationStyles')) {
+      const style = document.createElement('style');
+      style.id = 'notificationStyles';
+      style.textContent = `
+        @keyframes slideIn {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideOut {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     function switchTab(event, tabName) {
       event.preventDefault();
       document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -631,7 +720,17 @@
       }
     });
 
-    uploadArea.addEventListener('click', () => audioFile.click());
+    uploadArea.addEventListener('click', () => {
+      console.log('🖱️ Click en uploadArea');
+      console.log('audioFile.disabled:', audioFile.disabled);
+      console.log('uploadArea.style.pointerEvents:', uploadArea.style.pointerEvents);
+      if (!audioFile.disabled) {
+        audioFile.click();
+      } else {
+        console.warn('⚠️ Input bloqueado. Resetea el formulario primero.');
+        showNotification('⚠️ Ya hay un archivo cargado. Completa la subida o resetea el formulario.', 'warning');
+      }
+    });
     audioFile.addEventListener('change', handleFileSelect);
 
     // Manejadores para cover image
@@ -667,12 +766,36 @@
 
     function handleCoverSelect() {
       if (coverImage.files.length > 0) {
-        uploadedCover = coverImage.files[0];
+        const file = coverImage.files[0];
+        
+        // Validar tamaño (5MB máximo)
+        const maxSize = 5 * 1024 * 1024; // 5 MB
+        if (file.size > maxSize) {
+          showNotification('❌ Error: La imagen no puede exceder 5 MB', 'error');
+          coverImage.value = ''; // Limpiar input
+          return;
+        }
+        
+        // Validar tipo
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+          showNotification('❌ Error: Solo se permiten imágenes JPG, PNG o WebP', 'error');
+          coverImage.value = '';
+          return;
+        }
+        
+        uploadedCover = file;
         const reader = new FileReader();
         reader.onload = (e) => {
           document.getElementById('coverPlaceholder').style.display = 'none';
-          document.getElementById('coverPreview').style.display = 'block';
-          document.getElementById('coverPreview').src = e.target.result;
+          const previewDiv = document.getElementById('coverPreview');
+          const previewImg = document.getElementById('coverPreviewImg');
+          previewDiv.style.display = 'block';
+          previewImg.src = e.target.result;
+          
+          // Mostrar info del archivo
+          const fileSize = (file.size / 1024 / 1024).toFixed(2);
+          showNotification(`✅ Portada cargada: ${file.name} (${fileSize} MB)`, 'success');
         };
         reader.readAsDataURL(uploadedCover);
       }
@@ -680,8 +803,40 @@
 
     async function handleFileSelect() {
       if (audioFile.files.length > 0) {
-        uploadedFile = audioFile.files[0];
-        document.getElementById('fileName').textContent = uploadedFile.name;
+        const file = audioFile.files[0];
+        
+        // Validar tamaño (100MB máximo)
+        const maxSize = 100 * 1024 * 1024; // 100 MB
+        if (file.size > maxSize) {
+          showNotification('❌ Error: El archivo de audio no puede exceder 100 MB', 'error');
+          audioFile.value = ''; // Limpiar input
+          return;
+        }
+        
+        // Validar tipo
+        const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/flac', 'audio/x-flac'];
+        const validExtensions = ['.mp3', '.wav', '.flac'];
+        const fileName = file.name.toLowerCase();
+        const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+        
+        if (!validTypes.includes(file.type) && !hasValidExtension) {
+          showNotification('❌ Error: Solo se permiten archivos MP3, WAV o FLAC', 'error');
+          audioFile.value = '';
+          return;
+        }
+        
+        uploadedFile = file;
+        document.getElementById('fileName').textContent = file.name;
+        
+        // Bloquear input de audio (no se puede cambiar hasta resetear)
+        audioFile.disabled = true;
+        uploadArea.style.opacity = '0.6';
+        uploadArea.style.cursor = 'not-allowed';
+        uploadArea.style.pointerEvents = 'none';
+        
+        // Mostrar info del archivo
+        const fileSize = (file.size / 1024 / 1024).toFixed(2);
+        showNotification(`✅ Audio cargado: ${file.name} (${fileSize} MB)`, 'success');
         
         // Mostrar barra de progreso durante análisis
         const progressSection = document.getElementById('uploadProgressSection');
@@ -698,7 +853,7 @@
         document.getElementById('fileInfo').style.display = 'none';
 
         // Llamar al análisis IA
-        await analyzeWithAI(uploadedFile);
+        await analyzeWithAI(file);
       }
     }
 
@@ -722,6 +877,7 @@
 
         const result = await response.json();
         console.log('📊 Resultado del análisis:', result);
+        console.log('📦 AI DATA completo:', JSON.stringify(result.analysis, null, 2));
         
         // Ocultar loader
         document.getElementById('aiLoader').style.display = 'none';
@@ -737,13 +893,18 @@
           
           aiAnalysisData = result.analysis;
           
-          // Verificar si hay datos técnicos al menos
-          const tech = result.analysis.technical_data || result.analysis.technical_analysis || {};
+          // ✅ Detectar si es V2 (estructura plana) o V1 (objetos separados)
+          const isV2 = result.analysis.version === 'v2';
+          const tech = isV2 ? result.analysis : (result.analysis.technical_data || result.analysis.technical_analysis || {});
+          const ai = isV2 ? result.analysis : (result.analysis.ai_inference || {});
           const hasTechnicalData = tech.bpm || result.analysis.bpm || tech.key || result.analysis.key;
           
+          console.log(isV2 ? '🆕 Sistema V2 detectado' : '📦 Sistema V1 (legacy)');
           console.log('🔍 Datos técnicos encontrados:', hasTechnicalData);
-          console.log('📊 technical_data:', result.analysis.technical_data);
-          console.log('🤖 ai_inference:', result.analysis.ai_inference);
+          console.log('📊 BPM:', result.analysis.bpm, 'Confidence:', result.analysis.bpm_confidence);
+          console.log('🎹 KEY:', result.analysis.key, 'Confidence:', result.analysis.key_confidence);
+          console.log('🏷️  Tags:', result.analysis.tags?.length || 0);
+          console.log('🤖 Gemini activo:', result.analysis.artist_known !== undefined);
           
           if (hasTechnicalData) {
             displayAIResults(result.analysis);
@@ -784,7 +945,12 @@
           <p style="color: #92400e; font-weight: 600; margin: 0 0 0.5rem 0;">⚠️ Análisis IA no disponible</p>
           <p style="color: #78350f; font-size: 0.9rem; margin: 0;">Por favor completa los metadatos manualmente. Para habilitar análisis automático, configura GEMINI_API_KEY en el servidor.</p>
         `;
-        document.getElementById('uploads').insertBefore(errorMsg, document.getElementById('fileInfo'));
+        
+        // Insertar mensaje antes del formulario (método más seguro)
+        const uploadsContainer = document.getElementById('uploads');
+        if (uploadsContainer) {
+          uploadsContainer.appendChild(errorMsg);
+        }
         
         // Mostrar formulario para entrada manual
         document.getElementById('fileInfo').style.display = 'block';
@@ -795,13 +961,17 @@
       const resultsDiv = document.getElementById('aiResults');
       const tableDiv = document.getElementById('aiMetadataTable');
 
-      // Extraer datos del análisis
-      const tech = analysis.technical_data || analysis.technical_analysis || {};
-      const ai = analysis.ai_inference || {};
+      // ✅ Soporte para V1 y V2
+      const isV2 = analysis.version === 'v2';
+      const tech = isV2 ? analysis : (analysis.technical_data || analysis.technical_analysis || {});
+      const ai = isV2 ? analysis : (analysis.ai_inference || {});
       const confReport = analysis.confidence_report || {};
       const confItems = confReport.items || [];
       
-      console.log('📊 Procesando datos para tabla:', { tech, ai, confReport });
+      // ✅ Detectar si Gemini respondió correctamente
+      const geminiActive = isV2 ? (analysis.artist_known !== undefined || (analysis.tags && analysis.tags.length > 20)) : (ai.mood || ai.tags?.length > 0);
+      
+      console.log('📊 Procesando datos para tabla:', { isV2, tech, ai, geminiActive, tagsCount: analysis.tags?.length || ai.tags?.length || 0 });
       
       // Construir metadata desde confidence_report si está disponible
       const metadata = [];
@@ -863,63 +1033,76 @@
         });
       }
       
+      // ✅ BPM con confidence correcta
+      const bpmValue = bpmItem?.value || analysis.bpm || tech.bpm || 'No detectado';
+      const bpmConfidence = bpmItem?.confidence || analysis.bpm_confidence || tech.bpm_confidence || 0;
+      const bpmSource = bpmItem?.source || analysis.bpm_source || 'audio';
+      
       metadata.push({
         label: '🎵 BPM',
-        value: bpmItem?.value || tech.bpm || analysis.bpm || 'No detectado',
-        confidence: (bpmItem?.confidence || tech.bpm_confidence || 0) / 100,
-        source: bpmItem?.source || 'audio',
-        rationale: bpmItem?.rationale || 'Detección automática desde audio'
+        value: bpmValue,
+        confidence: bpmConfidence / 100,
+        source: bpmSource,
+        rationale: bpmItem?.rationale || (bpmSource === 'filename' ? 'Detectado del nombre del archivo' : 'Detección automática desde audio')
       });
+      
+      // ✅ KEY con confidence correcta
+      const keyValue = keyItem?.value || analysis.key || tech.key || 'No detectado';
+      const keyConfidence = keyItem?.confidence || analysis.key_confidence || tech.key_confidence || 0;
+      const keySource = keyItem?.source || analysis.key_source || 'audio';
       
       metadata.push({
         label: '🎹 Tonalidad',
-        value: keyItem?.value || tech.key || analysis.key || 'No detectado',
-        confidence: (keyItem?.confidence || tech.key_confidence || 0) / 100,
-        source: keyItem?.source || 'audio',
-        rationale: keyItem?.rationale || 'Análisis cromático del audio'
+        value: keyValue,
+        confidence: keyConfidence / 100,
+        source: keySource,
+        rationale: keyItem?.rationale || (keySource === 'filename' ? 'Detectado del nombre del archivo' : 'Análisis cromático del audio')
       });
       
+      // ✅ Mood
       metadata.push({
         label: '😊 Mood',
-        value: moodItem?.value || ai.mood || analysis.mood || 'No detectado',
-        confidence: (moodItem?.confidence || 0) / 100,
-        source: moodItem?.source || 'gemini',
-        rationale: moodItem?.rationale || 'Inferencia de IA basada en características musicales'
+        value: moodItem?.value || analysis.mood || ai.mood || 'No detectado',
+        confidence: (moodItem?.confidence || 85) / 100,
+        source: moodItem?.source || (ai.gemini_status === 'groq' ? 'ia-groq' : (ai.gemini_access ? 'ia-gemini' : 'local')),
+        rationale: moodItem?.rationale || (ai.gemini_status === 'groq' ? 'Inferencia de IA (Groq) basada en características musicales' : (ai.gemini_access ? 'Inferencia de IA (Gemini) basada en características musicales' : 'Heurística local'))
       });
       
-      // Tags generados por IA
-      const tagsArray = ai.tags || analysis.tags || [];
+      // ✅ Tags generados por IA con indicador dinámico
+      const tagsArray = analysis.tags || ai.tags || [];
+      const aiEngine = ai.gemini_status || 'unknown';
+      const aiActive = ai.gemini_access === true;
+      const tagsSource = aiActive ? (aiEngine === 'groq' ? 'ia-groq' : 'ia-gemini') : 'parser';
+      const tagsLabel = aiActive ? (aiEngine === 'groq' ? 'IA (Groq)' : 'IA (Gemini)') : 'Parser local';
+      
       metadata.push({
         label: '🏷️ Tags IA',
         value: tagsArray.length > 0 ? `${tagsArray.length} tags generados` : 'No detectado',
-        confidence: (tagsItem?.confidence || 0) / 100,
-        source: tagsItem?.source || 'gemini',
-        rationale: tagsItem?.rationale || `Gemini genera ${tagsArray.length} tags considerando artista + canción + análisis`
+        confidence: aiActive ? 0.90 : 0.50,
+        source: tagsSource,
+        rationale: aiActive ? `${tagsLabel} generó ${tagsArray.length} tags con análisis contextual del artista` : `Tags automáticos locales (${tagsArray.length})`
       });
       
-      metadata.push({
-        label: '🎵 BPM',
-        value: bpmItem?.value || tech.bpm || analysis.bpm || 'No detectado',
-        confidence: (bpmItem?.confidence || tech.bpm_confidence || 0) / 100,
-        source: bpmItem?.source || 'audio',
-        rationale: bpmItem?.rationale || 'Detección automática desde audio'
-      });
-      
-      metadata.push({
-        label: '🎹 Tonalidad',
-        value: keyItem?.value || tech.key || analysis.key || 'No detectado',
-        confidence: (keyItem?.confidence || tech.key_confidence || 0) / 100,
-        source: keyItem?.source || 'audio',
-        rationale: keyItem?.rationale || 'Análisis cromático del audio'
-      });
-      
-      metadata.push({
-        label: '😊 Mood',
-        value: moodItem?.value || ai.mood || analysis.mood || 'No detectado',
-        confidence: (moodItem?.confidence || 0) / 100,
-        source: moodItem?.source || 'gemini',
-        rationale: moodItem?.rationale || 'Inferencia de IA basada en características musicales'
-      });
+      // ✅ Indicador de conexión con IA (Groq/Gemini/Local) - reutiliza aiEngine y aiActive ya declarados
+      if (aiActive) {
+        const engineLabel = aiEngine === 'groq' ? 'Groq (Llama 3)' : 'Gemini';
+        const engineIcon = aiEngine === 'groq' ? '🚀' : '🤖';
+        metadata.push({
+          label: `${engineIcon} IA API`,
+          value: `✅ ${engineLabel} activo`,
+          confidence: 1.0,
+          source: aiEngine === 'groq' ? 'ia-groq' : 'ia-gemini',
+          rationale: `${engineLabel} activo: ${analysis.artist_known ? 'Artista detectado' : 'Análisis contextual completo'}`
+        });
+      } else {
+        metadata.push({
+          label: '⚙️ Análisis',
+          value: '⚠️ Local (sin IA)',
+          confidence: 0,
+          source: 'local',
+          rationale: 'Análisis local sin conexión a IA externa. Tags generados automáticamente.'
+        });
+      }
       
       // Progresión de acordes
       if (ai.chord_progression && ai.chord_progression.length > 0) {
@@ -970,6 +1153,7 @@
         let sourceIcon = '🤖';
         let sourceBg = 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1))';
         let sourceColor = '#6366f1';
+        let sourceLabel = item.source;
         
         if (item.source === 'audio') {
           sourceIcon = '🎵';
@@ -979,6 +1163,21 @@
           sourceIcon = '📁';
           sourceBg = 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1))';
           sourceColor = '#f59e0b';
+        } else if (item.source === 'ia-groq') {
+          sourceIcon = '🚀';
+          sourceBg = 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1))';
+          sourceColor = '#10b981';
+          sourceLabel = 'IA (Groq)';
+        } else if (item.source === 'ia-gemini' || item.source === 'gemini') {
+          sourceIcon = '🤖';
+          sourceBg = 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1))';
+          sourceColor = '#6366f1';
+          sourceLabel = 'IA (Gemini)';
+        } else if (item.source === 'local' || item.source === 'parser') {
+          sourceIcon = '⚙️';
+          sourceBg = 'linear-gradient(135deg, rgba(148, 163, 184, 0.1), rgba(100, 116, 139, 0.1))';
+          sourceColor = '#64748b';
+          sourceLabel = item.source === 'parser' ? 'Parser' : 'Local';
         }
 
         const bgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
@@ -987,7 +1186,7 @@
         tableHTML += `<td style="padding: 0.75rem; font-weight: 600; color: #64748b;">${item.label}</td>`;
         tableHTML += `<td style="padding: 0.75rem; color: #1e293b; font-weight: 500;">${item.value}</td>`;
         tableHTML += `<td style="padding: 0.75rem; text-align: center;">`;
-        tableHTML += `<span style="background: ${sourceBg}; color: ${sourceColor}; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600; display: inline-block;">${sourceIcon} ${item.source}</span>`;
+        tableHTML += `<span style="background: ${sourceBg}; color: ${sourceColor}; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600; display: inline-block;">${sourceIcon} ${sourceLabel}</span>`;
         tableHTML += `</td>`;
         tableHTML += `<td style="padding: 0.75rem;">`;
         tableHTML += `<div style="display: flex; align-items: center; gap: 0.5rem;">`;
@@ -1010,16 +1209,18 @@
     }
 
     function prefillFormWithAI(analysis) {
-      const tech = analysis.technical_data || analysis.technical_analysis || {};
-      const ai = analysis.ai_inference || {};
+      // ✅ Soporte para V1 y V2
+      const isV2 = analysis.version === 'v2';
+      const tech = isV2 ? analysis : (analysis.technical_data || analysis.technical_analysis || {});
+      const ai = isV2 ? analysis : (analysis.ai_inference || {});
       const confReport = analysis.confidence_report || {};
       const confItems = confReport.items || [];
       
-      console.log('✏️ Pre-llenando formulario con:', { tech, ai, confReport });
+      console.log('✏️ Pre-llenando formulario con:', { isV2, tech, ai, confReport });
       
       // BPM
       const bpmItem = confItems.find(item => item.parameter?.toLowerCase().includes('bpm'));
-      const bpmValue = bpmItem?.value || tech.bpm || analysis.bpm;
+      const bpmValue = bpmItem?.value || analysis.bpm || tech.bpm;
       if (bpmValue) {
         document.getElementById('bpmField').value = Math.round(parseFloat(bpmValue));
         console.log('✅ BPM llenado:', Math.round(parseFloat(bpmValue)));
@@ -1027,7 +1228,7 @@
       
       // Key
       const keyItem = confItems.find(item => item.parameter?.toLowerCase().includes('key'));
-      const keyValue = keyItem?.value || tech.key || analysis.key;
+      const keyValue = keyItem?.value || analysis.key || tech.key;
       if (keyValue) {
         document.getElementById('keyField').value = keyValue;
         console.log('✅ Key llenado:', keyValue);
@@ -1035,7 +1236,7 @@
       
       // Mood
       const moodItem = confItems.find(item => item.parameter?.toLowerCase().includes('mood'));
-      const moodValue = moodItem?.value || ai.mood || analysis.mood;
+      const moodValue = moodItem?.value || analysis.mood || ai.mood;
       if (moodValue) {
         document.getElementById('moodField').value = moodValue;
         console.log('✅ Mood llenado:', moodValue);
@@ -1043,65 +1244,80 @@
       
       // Beat Type (desde genre o estilo)
       const genreItem = confItems.find(item => item.parameter?.toLowerCase().includes('genre'));
-      const genreValue = genreItem?.value || ai.genre || analysis.genre;
+      const genreValue = genreItem?.value || analysis.genre || ai.genre;
       if (genreValue && !document.getElementById('beatType').value) {
         document.getElementById('beatType').value = genreValue;
         console.log('✅ Beat Type llenado:', genreValue);
       }
       
       // Reference (desde artistas similares si hay)
-      if (ai.similar_artists && ai.similar_artists.length > 0) {
-        const refValue = ai.similar_artists.slice(0, 2).join(', ');
+      const similarArtists = ai.similar_artists || analysis.similar_artists;
+      if (similarArtists && similarArtists.length > 0) {
+        const refValue = similarArtists.slice(0, 2).join(', ');
         if (!document.getElementById('reference').value) {
           document.getElementById('reference').value = refValue;
           console.log('✅ Reference llenado:', refValue);
         }
       }
       
-      // Tags - COMPLETO con todos los tags generados por Gemini
-      const tagsArray = ai.tags || analysis.tags || [];
+      // Tags - COMPLETO con todos los tags generados por Gemini (40-62 tags)
+      const tagsArray = analysis.tags || ai.tags || [];
       if (tagsArray.length > 0) {
         // Convertir array a string separado por comas
         const tagsString = tagsArray.join(', ');
         document.getElementById('tags').value = tagsString;
         console.log(`✅ Tags llenados (${tagsArray.length} tags):`, tagsString);
+        
+        // Log especial si Gemini generó muchos tags
+        if (tagsArray.length > 20) {
+          console.log('🤖 Gemini generó', tagsArray.length, 'tags con análisis contextual del artista');
+        }
       }
       
       // Descripción - combinar múltiples campos de IA
       let autoDescription = [];
       
-      if (ai.mood) {
-        autoDescription.push(`Mood: ${ai.mood}`);
-      }
-      
-      if (ai.energy_level) {
-        autoDescription.push(`Energía: ${ai.energy_level}`);
-      }
-      
-      if (ai.instruments && ai.instruments.length > 0) {
-        autoDescription.push(`Instrumentos: ${ai.instruments.join(', ')}`);
-      }
-      
-      if (ai.chord_progression && ai.chord_progression.length > 0) {
-        autoDescription.push(`Acordes: ${ai.chord_progression.join(' → ')}`);
-      }
-      
-      if (ai.scale_explanation) {
-        autoDescription.push(`Escala: ${ai.scale_explanation}`);
-      }
-      
-      if (ai.style_characteristics) {
-        autoDescription.push(`Características: ${ai.style_characteristics}`);
-      }
-      
-      if (ai.recommended_use_cases && ai.recommended_use_cases.length > 0) {
-        autoDescription.push(`Casos de uso: ${ai.recommended_use_cases.join(', ')}`);
+      // V2 tiene description directa
+      if (isV2 && analysis.description) {
+        autoDescription.push(analysis.description);
+      } else {
+        // V1 construye descripción desde campos
+        if (ai.mood || analysis.mood) {
+          autoDescription.push(`Mood: ${ai.mood || analysis.mood}`);
+        }
+        
+        if (ai.energy_level) {
+          autoDescription.push(`Energía: ${ai.energy_level}`);
+        }
+        
+        const instruments = ai.instruments || analysis.instruments;
+        if (instruments && instruments.length > 0) {
+          autoDescription.push(`Instrumentos: ${instruments.join(', ')}`);
+        }
+        
+        const chordProgression = ai.chord_progression || analysis.chord_progression;
+        if (chordProgression && chordProgression.length > 0) {
+          autoDescription.push(`Acordes: ${chordProgression.join(' → ')}`);
+        }
+        
+        if (ai.scale_explanation) {
+          autoDescription.push(`Escala: ${ai.scale_explanation}`);
+        }
+        
+        if (ai.style_characteristics) {
+          autoDescription.push(`Características: ${ai.style_characteristics}`);
+        }
+        
+        const useCases = ai.recommended_use_cases || analysis.recommended_use_cases;
+        if (useCases && useCases.length > 0) {
+          autoDescription.push(`Casos de uso: ${useCases.join(', ')}`);
+        }
       }
       
       if (autoDescription.length > 0 && !document.getElementById('description').value) {
         const descValue = autoDescription.join('\n');
         document.getElementById('description').value = descValue;
-        console.log('✅ Descripción auto-generada:', descValue);
+        console.log('✅ Descripción auto-generada:', descValue.substring(0, 100) + '...');
       }
 
       // Sugerir nombre basado en características
@@ -1118,13 +1334,15 @@
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      // Validaciones con notificaciones
       if (!uploadedFile) {
-        alert('❌ Por favor selecciona un archivo de audio');
+        showNotification('❌ Por favor selecciona un archivo de audio', 'error');
         return;
       }
 
       if (!uploadedCover) {
-        alert('❌ Por favor selecciona una portada para el beat');
+        showNotification('❌ Por favor selecciona una portada para el beat', 'error');
+        document.getElementById('coverUploadArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
 
@@ -1134,8 +1352,35 @@
       const bpmValue = parseInt(document.getElementById('bpmField').value);
       const price = parseInt(document.getElementById('price').value);
       
-      if (!beatName || !beatType || !keyValue || !bpmValue || !price) {
-        alert('❌ Por favor completa todos los campos obligatorios');
+      // Validar campos obligatorios con mensajes específicos
+      const requiredFields = [
+        { value: beatName, name: 'Nombre del Beat', field: 'beatName' },
+        { value: beatType, name: 'Tipo de Beat', field: 'beatType' },
+        { value: keyValue, name: 'Tonalidad (Key)', field: 'keyField' },
+        { value: bpmValue, name: 'BPM', field: 'bpmField' },
+        { value: price, name: 'Precio', field: 'price' }
+      ];
+      
+      for (const field of requiredFields) {
+        if (!field.value || (typeof field.value === 'number' && isNaN(field.value))) {
+          showNotification(`❌ Campo requerido: ${field.name}`, 'error');
+          document.getElementById(field.field)?.focus();
+          document.getElementById(field.field)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+      
+      // Validar rango de BPM
+      if (bpmValue < 20 || bpmValue > 300) {
+        showNotification('❌ El BPM debe estar entre 20 y 300', 'error');
+        document.getElementById('bpmField').focus();
+        return;
+      }
+      
+      // Validar precio mínimo
+      if (price < 0) {
+        showNotification('❌ El precio no puede ser negativo', 'error');
+        document.getElementById('price').focus();
         return;
       }
 
@@ -1146,6 +1391,7 @@
       // Simulación de estados del proceso
       updateUploadStatus('Preparando carga...', 0);
       updateProcessStep(1, '✓', '#10b981', 'Archivo');
+      showNotification('📤 Iniciando subida de beat...', 'info');
 
       setTimeout(() => {
         updateUploadStatus('Analizando metadatos...', 20);
@@ -1207,7 +1453,7 @@
             document.getElementById('uploadPercent').textContent = '100%';
 
             setTimeout(() => {
-              alert('✅ ¡Beat subido exitosamente!');
+              showNotification('✅ ¡Beat subido exitosamente!', 'success');
               document.getElementById('uploadForm').reset();
               document.getElementById('fileInfo').style.display = 'none';
               document.getElementById('aiResults').style.display = 'none';
@@ -1217,18 +1463,31 @@
               aiAnalysisData = null;
               document.getElementById('coverPreview').style.display = 'none';
               document.getElementById('coverPlaceholder').style.display = 'block';
-              setTimeout(() => location.reload(), 1500);
+              // Desbloquear input de audio
+              const audioInput = document.getElementById('audioFile');
+              const beatUploadArea = document.getElementById('beatUploadArea');
+              if (audioInput) audioInput.disabled = false;
+              if (beatUploadArea) {
+                beatUploadArea.style.opacity = '1';
+                beatUploadArea.style.cursor = 'pointer';
+                beatUploadArea.style.pointerEvents = 'auto';
+              }
+              setTimeout(() => location.reload(), 2000);
             }, 1000);
           } catch (e) {
-            alert('⚠️ Error. Intenta nuevamente.');
+            showNotification('⚠️ Error al procesar la respuesta. Intenta nuevamente.', 'error');
+            console.error('Error parsing response:', e);
           }
         } else {
-          alert('❌ Error: ' + (uploadXhr.responseText || 'Error en la carga'));
+          const errorMsg = uploadXhr.responseText || 'Error en la carga';
+          showNotification('❌ Error: ' + errorMsg, 'error');
+          updateUploadStatus('Error en la carga', 0);
         }
       });
 
       uploadXhr.addEventListener('error', () => {
-        alert('❌ Error en la conexión. Intenta nuevamente.');
+        showNotification('❌ Error en la conexión. Verifica tu internet e intenta nuevamente.', 'error');
+        updateUploadStatus('Error de conexión', 0);
       });
 
       uploadXhr.open('POST', '/upload-beat', true);

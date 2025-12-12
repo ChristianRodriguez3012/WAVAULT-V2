@@ -1363,20 +1363,73 @@
             setConfidence('BeatType', filenameData?.beat_type_confidence || 0);
             setConfidence('Reference', filenameData?.reference_confidence || 0);
 
-            // Sección 2: Audio
-            const tech = audioData.technical_data;
-            const ai = audioData.ai_inference;
+            // ✅ Sección 2: Audio - Soporte para V1 (objetos separados) y V2 (estructura plana)
+            // Detectar si es V2 (estructura plana) o V1 (objetos separados)
+            const isV2 = audioData.version === 'v2';
+            
+            let key, bpm, mood, tags, description, keyConfidence, bpmConfidence;
+            let subgenres = [];
+            let artistKnown = false;
+            let artistInfo = null;
 
-            document.getElementById('keyField').value = tech.key || '';
-            document.getElementById('bpmField').value = tech.bpm || '';
-            document.getElementById('moodField').value = ai.mood || '';
+            if (isV2) {
+                // Sistema V2: estructura plana
+                key = audioData.key || '';
+                bpm = audioData.bpm || '';
+                mood = audioData.mood || '';
+                tags = audioData.tags || [];
+                description = audioData.description || '';
+                keyConfidence = audioData.key_confidence || 0;
+                bpmConfidence = audioData.bpm_confidence || 0;
+                subgenres = audioData.subgenres || [];
+                artistKnown = audioData.artist_known || false;
+                artistInfo = audioData.artist_info || null;
+                
+                console.log('🆕 Sistema V2 detectado');
+            } else {
+                // Sistema V1: objetos separados (legacy)
+                const tech = audioData.technical_data || {};
+                const ai = audioData.ai_inference || {};
+                
+                key = tech.key || '';
+                bpm = tech.bpm || '';
+                mood = ai.mood || '';
+                tags = ai.tags || [];
+                description = ai.description || '';
+                keyConfidence = tech.key_confidence || 0;
+                bpmConfidence = tech.bpm_confidence || 0;
+                
+                console.log('📦 Sistema V1 detectado (legacy)');
+            }
 
-            setConfidence('Key', tech.key_confidence || 0);
-            setConfidence('Bpm', tech.bpm_confidence || 0);
+            // Llenar campos del formulario
+            document.getElementById('keyField').value = key;
+            document.getElementById('bpmField').value = bpm;
+            document.getElementById('moodField').value = mood;
 
-            // Sección 3: Tags
-            suggestedTags = ai.tags || [];
+            setConfidence('Key', keyConfidence);
+            setConfidence('Bpm', bpmConfidence);
+
+            // ✅ Sección 3: Tags (sistema V2 genera hasta 62 tags)
+            suggestedTags = tags;
+            console.log(`🏷️  Tags generados: ${suggestedTags.length} tags`);
             displayTags();
+
+            // ✅ Sección 4: Description (autofill con descripción generada por IA)
+            if (description) {
+                document.getElementById('description').value = description;
+                console.log(`📝 Descripción autofill: ${description.substring(0, 100)}...`);
+            }
+
+            // ✅ Log de datos del sistema V2
+            if (isV2) {
+                if (artistKnown && artistInfo) {
+                    console.log(`🎤 Artista detectado: ${artistInfo.name || 'Desconocido'}`);
+                }
+                if (subgenres.length > 0) {
+                    console.log(`🎵 Subgéneros: ${subgenres.join(', ')}`);
+                }
+            }
 
             // Mostrar resultados y botón de aceptar
             document.getElementById('analysisLoading').classList.remove('active');

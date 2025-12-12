@@ -5,6 +5,9 @@ const multer = require("multer");
 const db = require("./db");
 const { spawn } = require("child_process");
 
+// ✅ Cargar variables de entorno desde .env
+require('dotenv').config();
+
 const app = express();
 const port = 3000;
 
@@ -24,12 +27,35 @@ const storage = multer.diskStorage({
     cb(null, uniqueName);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { 
+    fileSize: 100 * 1024 * 1024 // 100 MB max por archivo de audio
+  },
+  fileFilter: (req, file, cb) => {
+    // Validar tamaño según tipo de archivo
+    if (file.fieldname === 'cover') {
+      // Límite de 5MB para imágenes
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return cb(new Error('La imagen de portada no puede exceder 5 MB'));
+      }
+    } else if (file.fieldname === 'audio') {
+      // Límite de 100MB para audio
+      const maxSize = 100 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return cb(new Error('El archivo de audio no puede exceder 100 MB'));
+      }
+    }
+    cb(null, true);
+  }
+});
 
 // ===================
 // ✅ MIDDLEWARES
 // ===================
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use("/uploads", express.static(path.join(__dirname, "..", "public", "uploads")));
 
@@ -216,8 +242,10 @@ const AudioAIAnalyzer = require("./ai-analysis-integration");
 const analyzer = new AudioAIAnalyzer();
 
 /**
+/**
  * POST /api/analyze-beat
  * Analiza un beat subido y retorna características técnicas + IA
+ * Usa sistema V2 con 62 tags, validación de KEY y detección de artistas
  */
 app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
   try {
@@ -228,10 +256,10 @@ app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
       });
     }
 
-    console.log(`📊 Analizando beat: ${req.file.originalname}`);
+    console.log(`📊 Analizando beat con sistema V2: ${req.file.originalname}`);
     
-    // Analizar con IA, pasando el nombre original del archivo
-    const result = await analyzer.analyze(req.file.path, req.file.originalname);
+    // Analizar con IA usando sistema V2 (62 tags, validación KEY, artistas)
+    const result = await analyzer.analyze(req.file.path, req.file.originalname, true);
 
     if (result.status !== "success") {
       return res.status(500).json({
@@ -240,7 +268,10 @@ app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
       });
     }
 
-    console.log(`✅ Beat analizado exitosamente`);
+    console.log(`✅ Beat analizado exitosamente con sistema V2`);
+    console.log(`   🏷️  Tags generados: ${result.tags?.length || 0}`);
+    console.log(`   🎵 BPM: ${result.bpm} (confidence: ${result.bpm_confidence}%)`);
+    console.log(`   🎹 KEY: ${result.key} (confidence: ${result.key_confidence}%)`);
     
     return res.json({
       success: true,
@@ -564,11 +595,11 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
     console.log(`   🖼️  Cover: ${coverPath}`);
     console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${beat_type}`);
 
-    // Insertar en BD (con audio_processed inicialmente nulo, se actualiza después)
+    // Insertar en BD (sin audio_processed inicialmente, se actualiza después)
     db.run(
       `INSERT INTO beats (title, bpm, key, price, tags, cover, audio, audio_processed, producer)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [beat_name, bpm, key, price, tags || "beat", coverPath, audioPath, audioProcessedPath, producer],
+      [beat_name, bpm, key, price, tags || "beat", coverPath, audioPath, null, producer],
       function (err) {
         if (err) {
           console.error("❌ Error al guardar beat:", err.message);
@@ -615,16 +646,29 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
               console.log(`✅ Clone procesado correctamente`);
               console.log(`   📁 Ruta: ${audioProcessedPath}`);
               
-              // No es necesario actualizar, ya está guardado en INSERT
-              // pero confirmamos que el archivo existe
+              // Verificar que el archivo existe
               if (fs.existsSync(fullAudioProcessedPath)) {
                 const stats = fs.statSync(fullAudioProcessedPath);
                 console.log(`   📦 Tamaño: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+                // ✅ Ahora actualizar la BD con la ruta del clone generado
+                db.run(
+                  `UPDATE beats SET audio_processed = ? WHERE id = ?`,
+                  [audioProcessedPath, beatId],
+                  (err) => {
+                    if (err) {
+                      console.error(`⚠️  Error actualizando audio_processed:`, err.message);
+                    } else {
+                      console.log(`✅ audio_processed actualizado en BD para beat ${beatId}`);
+                    }
+                  }
+                );
+              } else {
+                console.error(`❌ Archivo clone no encontrado después de procesamiento: ${fullAudioProcessedPath}`);
               }
             } else {
               console.warn(`⚠️ Procesamiento de clone finalizó con código ${code}`);
               console.warn(`   El beat se guardó pero sin clone procesado`);
-              console.warn(`   Usuario puede reproducir el archivo original`);
+              console.warn(`   Usuario reproducirá el archivo original`);
             }
           });
 
@@ -634,7 +678,7 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
 
         } else {
           console.warn(`⚠️ Script de procesamiento no encontrado: ${processScriptPath}`);
-          console.warn(`   Procesando solo con demo...`);
+          console.warn(`   Beat guardado sin clone procesado`);
         }
 
         // Guardar análisis IA si está disponible
@@ -671,7 +715,8 @@ app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 
           success: true,
           message: "✅ Beat guardado exitosamente",
           beatId: beatId,
-          audio_processed: audioProcessedPath
+          audio: audioPath,
+          note: "Clone se procesa en background. Refresca para verlo disponible para reproducción con calidad reducida."
         });
       }
     );
@@ -695,6 +740,11 @@ app.use((req, res) => {
 // ===================
 // ✅ INICIAR SERVIDOR
 // ===================
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${port}`);
 });
+
+// ⏱️ Incrementar timeout para análisis largos con IA (3 minutos)
+server.timeout = 180000; // 180 segundos = 3 minutos
+server.keepAliveTimeout = 185000; // 5 segundos más que timeout
+server.headersTimeout = 186000; // 1 segundo más que keepAliveTimeout

@@ -508,17 +508,34 @@ document.addEventListener("DOMContentLoaded", () => {
       iaResults.innerHTML = `<p>${parts.join(' • ')}</p>`;
       iaResults.style.display = 'block';
 
-      const summary = report.summary || 'Parseo del filename → análisis de audio (BPM/Key) → Gemini para mood y tags.';
-      const method = report.method || 'Fuentes: filename (si existe) + audio + Gemini 2.0 Flash.';
+      const summary = report.summary || 'Parseo del filename → análisis de audio (BPM/Key) → IA para mood y tags.';
+      const method = report.method || 'Fuentes: filename (si existe) + audio + IA.';
       iaInfo.style.display = 'block';
       iaInfo.innerHTML = `<strong>Cómo se generó:</strong> ${summary}<br><small>${method}</small>`;
+      
+      // Indicador de IA activa
+      const aiEngine = ai.gemini_status || 'unknown';
+      const aiActive = ai.gemini_access === true;
+      let aiLabel = '⚠️ IA Local';
+      let aiColor = '#f59e0b';
+      if (aiActive) {
+        if (aiEngine === 'groq') {
+          aiLabel = '✅ IA Activa (Groq)';
+          aiColor = '#10b981';
+        } else if (aiEngine === 'ok') {
+          aiLabel = '✅ IA Activa (Gemini)';
+          aiColor = '#6366f1';
+        }
+      }
+      const aiBadge = `<span style="display:inline-block;margin-left:0.5rem;padding:0.25rem 0.5rem;background:${aiColor};color:white;border-radius:4px;font-size:0.75rem;font-weight:600;">${aiLabel}</span>`;
+      iaInfo.innerHTML += aiBadge;
 
       const fallbackRows = [
         { parameter: 'Nombre/Referencia', value: analysisData.filename || audioFile?.name || '-', confidence: 85, source: 'filename', rationale: 'Parseo directo del archivo' },
         { parameter: 'Key', value: tech.key || '-', confidence: tech.key_confidence ?? 80, source: tech.detection_source?.key_from_filename ? 'filename' : 'audio', rationale: 'Filename o detección cromática' },
         { parameter: 'BPM', value: tech.bpm || '-', confidence: tech.bpm_confidence ?? 80, source: tech.detection_source?.bpm_from_filename ? 'filename' : 'audio', rationale: 'Filename o análisis de tempo' },
-        { parameter: 'Mood', value: ai.mood || '-', confidence: 78, source: 'gemini', rationale: 'Gemini usando BPM/Key y hints' },
-        { parameter: 'Tags (IA)', value: (ai.tags || []).slice(0,5).join(', ') || '-', confidence: 80, source: 'gemini', rationale: 'Gemini priorizando tags obligatorios' }
+        { parameter: 'Mood', value: ai.mood || '-', confidence: 78, source: ai.gemini_status === 'groq' ? 'ia-groq' : (ai.gemini_access ? 'ia-gemini' : 'local'), rationale: ai.gemini_status === 'groq' ? 'IA (Groq) usando BPM/Key y hints' : (ai.gemini_access ? 'IA (Gemini) usando BPM/Key y hints' : 'Heurística local') },
+        { parameter: 'Tags (IA)', value: (ai.tags || []).slice(0,5).join(', ') || '-', confidence: 80, source: ai.gemini_status === 'groq' ? 'ia-groq' : (ai.gemini_access ? 'ia-gemini' : 'parser'), rationale: ai.gemini_status === 'groq' ? 'IA (Groq) priorizando tags obligatorios' : (ai.gemini_access ? 'IA (Gemini) priorizando tags obligatorios' : 'Parser local') }
       ];
 
       const rows = Array.isArray(report.items) && report.items.length ? report.items : fallbackRows;
