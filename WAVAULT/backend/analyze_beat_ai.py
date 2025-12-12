@@ -2912,6 +2912,14 @@ def merge_autofill_into_result(result: dict, filename: str):
     sources['filename_autofill'] = True
     result['sources'] = sources
     return result
+
+
+def combine_all_analysis(parsed_data, audio_analysis, gemini_analysis):
+    """Combina parser, análisis de audio y respuesta IA en un único resultado."""
+    result = {}
+
+    # KEY
+    if parsed_data.get('key') and parsed_data.get('key_confidence', 0) >= 95:
         result['key'] = parsed_data['key']
         result['key_confidence'] = parsed_data['key_confidence']
         result['key_source'] = 'filename'
@@ -3076,6 +3084,7 @@ def main():
         confidence_report = generate_confidence_report(technical_data, ai_inference)
         
         # Construir respuesta final
+        autofill_info = build_autofill_from_filename(safe_parse_filename(filename))
         result = {
             "status": "success",
             "technical_data": {
@@ -3103,8 +3112,15 @@ def main():
                 "scale_explanation": str(ai_inference.get("scale_explanation", ""))
             },
             "confidence_report": confidence_report,
-            "filename": filename
+            "filename": filename,
+            "autofill": autofill_info
         }
+
+        # Combinar tags de autofill sin diluir IA (legacy)
+        fn_tags = autofill_info.get('tags_from_filename', []) or []
+        existing_tags = result['ai_inference'].get('tags', []) or []
+        combined = list(dict.fromkeys(existing_tags + fn_tags))
+        result['ai_inference']['tags'] = combined[:30]
         
         # Imprimir JSON para consumo por Node.js
         print(json.dumps(result, ensure_ascii=False, indent=2))
