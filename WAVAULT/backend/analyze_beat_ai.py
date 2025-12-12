@@ -2864,6 +2864,54 @@ def safe_parse_filename(name: str):
         return info
     except Exception:
         return {'artist': None,'collabs': [],'title': None,'bpm': None,'key': None,'type': 'Beat','mood_hint': None,'genre_hint': []}
+
+def merge_autofill_into_result(result: dict, filename: str):
+    """Integra autofill derivado del filename dentro del JSON final del endpoint.
+    No sobrescribe campos existentes de IA; solo completa vacíos y agrega tags complementarios.
+    """
+    info = safe_parse_filename(filename)
+    auto = build_autofill_from_filename(info)
+
+    # Completar campos si faltan
+    result.setdefault('artist', auto.get('artist'))
+    if not result.get('artist') and auto.get('artist'):
+        result['artist'] = auto['artist']
+
+    if auto.get('collaborators'):
+        existing = set(result.get('collaborators', []) or [])
+        for c in auto['collaborators']:
+            if c and c not in existing:
+                existing.add(c)
+        result['collaborators'] = list(existing)
+
+    if not result.get('bpm') and auto.get('bpm'):
+        result['bpm'] = auto['bpm']
+    if (not result.get('key') or result.get('key') == 'Unknown') and auto.get('key'):
+        result['key'] = auto['key']
+
+    if not result.get('genre') and auto.get('genre'):
+        result['genre'] = auto['genre']
+    if auto.get('subgenres'):
+        sg = set(result.get('subgenres', []) or [])
+        for s in auto['subgenres']:
+            if s and s not in sg:
+                sg.add(s)
+        result['subgenres'] = list(sg)
+
+    if not result.get('mood') and auto.get('mood'):
+        result['mood'] = auto['mood']
+
+    # Combinar tags del filename sin diluir IA
+    fn_tags = auto.get('tags_from_filename', []) or []
+    existing_tags = result.get('tags', []) or []
+    combined = list(dict.fromkeys(existing_tags + fn_tags))
+    result['tags'] = combined[:30]
+
+    # Marcar fuente
+    sources = result.get('sources', {})
+    sources['filename_autofill'] = True
+    result['sources'] = sources
+    return result
         result['key'] = parsed_data['key']
         result['key_confidence'] = parsed_data['key_confidence']
         result['key_source'] = 'filename'
@@ -2953,6 +3001,12 @@ def analyze_beat_complete_v2(audio_path, filename):
     
     # Combinar
     final_result = combine_all_analysis(parsed_data, audio_analysis, gemini_analysis)
+    # Integrar autofill basado en filename sin sobrescribir IA
+    try:
+        final_result = merge_autofill_into_result(final_result, filename)
+        print("🧩 Autofill por filename integrado", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️ Autofill por filename no integrado: {e}", file=sys.stderr)
     print(f"✅ Análisis completo", file=sys.stderr)
     return final_result
 
