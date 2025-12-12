@@ -2837,14 +2837,14 @@ def build_autofill_from_filename(filename_info):
     return data
 
 def safe_parse_filename(name: str):
-    """Parser básico seguro (ASCII-only) para extraer artista, collabs, bpm, key, tipo, demo y tagged.
-    Formatos comunes:
-      - "Artist x Collab - Title - 95 BPM E Minor"
-      - "[DEMO] Artist Type Beat - Title - 140 BPM C Minor"
-      - "[TAGGED] Artist - Instrumental - 120 BPM A Minor"
+    """Parser robusto para extraer metadata de nombres de archivo sin formato fijo.
+    Detecta: artista(s), género/canción, type beat, BPM, key, demo/master/free/tagged.
+    Ignora marcadores comunes: [free], (free), [demo], (demo), [Master], (Master), etc.
     """
     try:
-        parts = [p.strip() for p in re.split(r"\s*-\s*", name) if p.strip()]
+        # Remover extensión
+        name_clean = re.sub(r'\.(mp3|wav|flac|m4a|ogg)$', '', name, flags=re.IGNORECASE)
+        
         info = {
             'artist': None,
             'collabs': [],
@@ -2857,43 +2857,110 @@ def safe_parse_filename(name: str):
             'is_demo': False,
             'is_tagged': False
         }
-        if not parts:
-            return info
-        artseg = parts[0]
-        # Limpiar marcadores [TAGGED], [DEMO], (tagged), (demo) del segmento de artista
-        artseg = re.sub(r'\[(TAGGED|DEMO)\]|\((tagged|demo)\)', '', artseg, flags=re.IGNORECASE).strip()
-        artists = [a.strip() for a in re.split(r"\s*(?:x|ft\.?|feat\.?|&|,|\+)\s*", artseg, flags=re.IGNORECASE) if a.strip()]
-        if artists:
-            info['artist'] = artists[0]
-            info['collabs'] = artists
-        # Detectar "Type Beat", "Instrumental", [DEMO], [TAGGED] en cualquier segmento
-        full_lower = name.lower()
-        if 'type beat' in full_lower:
+        
+        # Detectar flags antes de limpiar
+        name_lower = name_clean.lower()
+        info['is_demo'] = bool(re.search(r'\[?(demo|free)\]?', name_lower))
+        info['is_tagged'] = bool(re.search(r'\[?tagged\]?', name_lower))
+        if 'type beat' in name_lower:
             info['type'] = 'Type Beat'
-        elif 'instrumental' in full_lower:
+        elif 'instrumental' in name_lower:
             info['type'] = 'Instrumental'
-        # Detectar [DEMO], (demo), [TAGGED], (tagged)
-        if re.search(r'\[(demo|tagged)\]|\((demo|tagged)\)', full_lower):
-            if 'demo' in full_lower:
-                info['is_demo'] = True
-            if 'tagged' in full_lower:
-                info['is_tagged'] = True
-        for p in parts[1:]:
-            m_bpm = re.search(r"\b(\d{2,3})\s?bpm\b", p, flags=re.IGNORECASE)
-            if m_bpm:
-                info['bpm'] = int(m_bpm.group(1))
-            m_key = re.search(r"\b([A-G](#|b)?\s?(?:Minor|Major|maj|min|m))\b", p, flags=re.IGNORECASE)
-            if m_key:
-                k = m_key.group(1)
-                k = k.replace('maj','Major').replace('min','Minor')
-                if re.search(r"\b[A-G](#|b)?\s*m\b", k):
-                    k = re.sub(r"\bm\b", " Minor", k)
-                info['key'] = re.sub(r"\s+", " ", k).strip()
-        if len(parts) > 1:
-            info['title'] = parts[1]
+        
+        # Buscar BPM en todo el nombre (60-200)
+        m_bpm = re.search(r'\b(\d{2,3})(?:\s?bpm)?\b', name_clean, flags=re.IGNORECASE)
+        if m_bpm:
+            bpm_candidate = int(m_bpm.group(1))
+            if 60 <= bpm_candidate <= 200:
+                info['bpm'] = bpm_candidate
+        
+        # Buscar Key (con sharp/bemol + Major/Minor/m)
+        m_key = re.search(
+            r'\b([A-G](?:#|b|♯|♭)?)\s?(?:(Major|Minor|maj|min|m(?!\w)))\b',
+            name_clean,
+            flags=re.IGNORECASE
+        )
+        if m_key:
+            root = m_key.group(1).replace('♯', '#').replace('♭', 'b')
+            quality = m_key.group(2).lower()
+            if quality in ['major', 'maj']:
+                info['key'] = f"{root} Major"
+            elif quality in ['minor', 'min', 'm']:
+                info['key'] = f"{root} Minor"
+        
+        # Limpiar marcadores para el parseo de artistas/título
+        clean_for_parse = re.sub(
+            r'\[?(free|demo|master|tagged|copyright)\]?',
+            '',
+            name_clean,
+            flags=re.IGNORECASE
+        )
+        clean_for_parse = re.sub(r'\s+', ' ', clean_for_parse).strip()
+        
+        # Estrategia: buscar "Type Beat" o "Instrumental" y separar artistas del resto
+        type_match = re.search(r'\b(type\s+beat|instrumental)\b', clean_for_parse, flags=re.IGNORECASE)
+        artist_section = clean_for_parse
+        title_section = None
+        
+        if type_match:
+            # Todo ANTES de "Type Beat" es la sección de artistas
+            artist_section = clean_for_parse[:type_match.start()].strip()
+            # Lo que viene DESPUÉS puede ser el título
+            after_type = clean_for_parse[type_match.end():].strip()
+            if after_type and after_type.startswith('-'):
+                after_type = after_type[1:].strip()
+            if after_type:
+                title_section = after_type
+        else:
+            # Sin "Type Beat", usar separador '-' tradicional
+            parts = [p.strip() for p in re.split(r'\s*-\s*', clean_for_parse) if p.strip()]
+            if parts:
+                artist_section = parts[0]
+                if len(parts) > 1:
+                    title_section = parts[1]
+        
+        # Extraer artistas de artist_section
+        if artist_section:
+            # Separadores: x, ft, feat, &, +, ,
+            artists = [
+                a.strip() 
+                for a in re.split(r'\s*(?:\bx\b|\bft\.?\b|\bfeat\.?\b|&|\+|,)\s*', artist_section, flags=re.IGNORECASE)
+                if a.strip() and len(a.strip()) > 1 and not re.match(r'^\d+$', a.strip())
+            ]
+            
+            # Filtrar palabras genéricas
+            valid_artists = [
+                art for art in artists 
+                if art.lower() not in ['type', 'beat', 'instrumental', 'prod', 'free', 'demo', 'master', '']
+            ]
+            
+            if valid_artists:
+                info['artist'] = valid_artists[0]
+                info['collabs'] = valid_artists
+            
+            # Extraer título si existe
+            if title_section:
+                # Remover BPM y Key residuales
+                title_candidate = re.sub(r'\b\d{2,3}(?:\s?bpm)?\b', '', title_section, flags=re.IGNORECASE)
+                title_candidate = re.sub(r'\b[A-G](?:#|b)?\s?(?:Major|Minor|maj|min|m)\b', '', title_candidate, flags=re.IGNORECASE)
+                title_candidate = re.sub(r'\s+', ' ', title_candidate).strip()
+                if title_candidate and title_candidate.lower() not in ['type', 'beat', 'type beat']:
+                    info['title'] = title_candidate
+        
         return info
-    except Exception:
-        return {'artist': None,'collabs': [],'title': None,'bpm': None,'key': None,'type': 'Beat','mood_hint': None,'genre_hint': []}
+    except Exception as e:
+        return {
+            'artist': None,
+            'collabs': [],
+            'title': None,
+            'bpm': None,
+            'key': None,
+            'type': 'Beat',
+            'mood_hint': None,
+            'genre_hint': [],
+            'is_demo': False,
+            'is_tagged': False
+        }
 
 def merge_autofill_into_result(result: dict, filename: str):
     """Integra autofill derivado del filename dentro del JSON final del endpoint.
@@ -3046,12 +3113,15 @@ def analyze_beat_complete_v2(audio_path, filename):
     """Análisis completo con nuevo sistema mejorado."""
     print(f"🔍 Analizando: {filename}", file=sys.stderr)
     
-    # Parser
-    if PARSER_AVAILABLE:
-        parsed_data = parse_filename(filename)
-        print(f"✅ Parser: BPM={parsed_data.get('bpm')}, KEY={parsed_data.get('key')}", file=sys.stderr)
-    else:
-        parsed_data = {'beat_name': filename, 'bpm': None, 'key': None, 'bpm_confidence': 0, 'key_confidence': 0}
+    # Parser mejorado (usa safe_parse_filename directamente)
+    parsed_data = safe_parse_filename(filename)
+    # Añadir confidence estándar para compatibilidad
+    parsed_data.setdefault('bpm_confidence', 100 if parsed_data.get('bpm') else 0)
+    parsed_data.setdefault('key_confidence', 100 if parsed_data.get('key') else 0)
+    parsed_data.setdefault('beat_name', parsed_data.get('title'))
+    parsed_data.setdefault('reference_artist', parsed_data.get('artist'))
+    parsed_data.setdefault('beat_type', parsed_data.get('type'))
+    print(f"✅ Parser: BPM={parsed_data.get('bpm')}, KEY={parsed_data.get('key')}, Artist={parsed_data.get('artist')}", file=sys.stderr)
     
     # Audio
     print(f"🎵 Analizando audio...", file=sys.stderr)
