@@ -1,0 +1,114 @@
+{
+  "status": "success",
+  "technical_data": {
+    "bpm": 140,
+    "bpm_confidence": 92.5,
+    "key": "C Minor",
+    "key_confidence": 88.0,
+    "duration": 183.5,
+    "spectral_centroid": 2800.5,
+    "lufs": -12.3,
+    "spectral_rolloff": 7500.2,
+    "zero_crossing_rate": 0.08,
+    "detection_source": {
+      "bpm_from_filename": true,
+      "key_from_filename": true
+    }
+  },
+  "ai_inference": {
+    "mood": "Energético / Dark Trap",
+    "tags": [
+      "Trap",
+      "Dark",
+      "808",
+      "Hi-Hats",
+      "Snare Roll",
+      "BPM 140",
+      "Minor Key",
+      "Latin Influence",
+      "Heavy Bass",
+      "Fast Hi-Hats",
+      "Travis Scott Style",
+      "Type Beat",
+      "Rap",
+      "Hip-Hop",
+      "Modern Trap",
+      "Drum Machine",
+      "Synth Pad",
+      "Atmospheric"
+    ],
+    "tags_source": "IA + Parser",
+    "gemini_access": true,
+    "gemini_status": "ok",
+    "chord_progression": [
+      "Cm",
+      "Ab",
+      "Eb",
+      "Bb"
+    ],
+    "scale_explanation": "Escala menor natural en C (C-D-Eb-F-G-Ab-Bb) con progresión i-bVI-bIII-bVII típica del trap oscuro."
+  },
+  "confidence_report": {
+    "items": [
+      {
+        "parameter": "📁 Nombre/Archivo",
+        "value": "Travis Scott - SICKO MODE Type Beat 140 BPM C Minor.mp3",
+        "confidence": 92.0,
+        "source": "filename",
+        "rationale": "Parseo directo del nombre del archivo"
+      },
+      {
+        "parameter": "🎤 Artista Detectado",
+        "value": "Travis Scott",
+        "confidence": 85.0,
+        "source": "filename",
+        "rationale": "Extraído del nombre del archivo (antes del primer '-')"
+      },
+      {
+        "parameter": "🎵 Canción/Referencia",
+        "value": "SICKO MODE Type Beat",
+        "confidence": 80.0,
+        "source": "filename",
+        "rationale": "Extraído del nombre del archivo (entre artista y TYPE BEAT)"
+      },
+      {
+        "parameter": "🎸 Género (del Artista)",
+        "value": "Trap",
+        "confidence": 95.0,
+        "source": "gemini",
+        "rationale": "Género del artista identificado por Gemini desde tags generados"
+      },
+      {
+        "parameter": "BPM",
+        "value": "140",
+        "confidence": 100.0,
+        "source": "filename",
+        "rationale": "Se prioriza el valor en el filename; si falta, detección multi-método de audio"
+      },
+      {
+        "parameter": "Key",
+        "value": "C Minor",
+        "confidence": 100.0,
+        "source": "filename",
+        "rationale": "Parseo del filename o detección cromática avanzada sobre el audio"
+      },
+      {
+        "parameter": "Mood",
+        "value": "Energético / Dark Trap",
+        "confidence": 88.0,
+        "source": "gemini",
+        "rationale": "Gemini combina hints del filename, BPM/Key y búsqueda web"
+      },
+      {
+        "parameter": "Etiquetas (IA + Parser)",
+        "value": "Trap, Dark, 808, Hi-Hats, Snare Roll, BPM 140, Minor Key, Latin Influence",
+        "confidence": 90.0,
+        "source": "gemini",
+        "rationale": "Gemini genera 18 tags considerando: artista + canción + análisis + búsqueda web"
+      }
+    ],
+    "summary": "Pipeline: parseo del filename → análisis técnico (BPM/Key) → Gemini para mood y tags.",
+    "method": "Fuentes: filename (si existe) + audio + Gemini 2.0 Flash."
+  },
+  "filename": "Travis Scott - SICKO MODE Type Beat 140 BPM C Minor.mp3"
+}

@@ -18,9 +18,10 @@ class AudioAIAnalyzer {
    * Analiza un archivo de audio con IA
    * @param {string} audioPath - Ruta absoluta del archivo de audio
    * @param {string} filename - Nombre del archivo (opcional)
+   * @param {boolean} useV2 - Si true, usa sistema V2 con 62 tags, validación de KEY y artistas (opcional, default: false)
    * @returns {Promise<Object>} - Objeto con análisis técnico e inferencia IA
    */
-  async analyze(audioPath, filename = null) {
+  async analyze(audioPath, filename = null, useV2 = false) {
     return new Promise((resolve, reject) => {
       // Validar que el archivo existe
       if (!fs.existsSync(audioPath)) {
@@ -37,25 +38,46 @@ class AudioAIAnalyzer {
         filename = path.basename(audioPath);
       }
 
-      // Configurar variables de entorno
+      // Configurar variables de entorno - PASAR TODAS LAS KEYS Y GROQ
       const env = {
         ...process.env,
-        GEMINI_API_KEY: this.apiKey || '', // permite fallback local en Python
+        // Gemini keys (multi-key support)
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+        GEMINI_API_KEYS: process.env.GEMINI_API_KEYS || '',
+        GEMINI_API_KEY_2: process.env.GEMINI_API_KEY_2 || '',
+        GEMINI_API_KEY_3: process.env.GEMINI_API_KEY_3 || '',
+        GEMINI_API_KEY_4: process.env.GEMINI_API_KEY_4 || '',
+        GEMINI_API_KEY_5: process.env.GEMINI_API_KEY_5 || '',
+        // Groq support
+        GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+        GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+        USE_GROQ_PRIMARY: process.env.USE_GROQ_PRIMARY || '0',
+        // Python settings
         PYTHONUNBUFFERED: '1' // Desactivar buffering para output en tiempo real
       };
 
+      // Construir argumentos para Python
+      const pythonArgs = [this.scriptPath, audioPath, filename];
+      if (useV2) {
+        pythonArgs.push('--v2');  // ✅ Activar sistema V2 con 62 tags
+      }
+
       // Iniciar proceso Python con archivo y nombre
-      const pythonProcess = spawn('python3', [this.scriptPath, audioPath, filename], { env });
+      const pythonProcess = spawn('python3', pythonArgs, { env });
 
       let output = '';
       let errorOutput = '';
       let timeoutHandle = null;
 
-      // Timeout de 60 segundos para análisis
-      timeoutHandle = setTimeout(() => {
-        pythonProcess.kill('SIGTERM');
-        reject(new Error('Timeout: El análisis tardó más de 60 segundos'));
-      }, 60000);
+      // Timeout de 3 minutos para análisis con IA (Groq/Gemini requieren más tiempo)
+        // Timeout más corto para UX: 90 segundos
+        timeoutHandle = setTimeout(() => {
+          // Cortar proceso si se excede el tiempo máximo
+          try {
+            if (pythonProcess && !pythonProcess.killed) pythonProcess.kill('SIGKILL');
+          } catch {}
+          reject(new Error('Timeout: El análisis tardó más de 90 segundos'));
+        }, 90000);
 
       // Capturar salida estándar
       pythonProcess.stdout.on('data', (data) => {
@@ -64,8 +86,10 @@ class AudioAIAnalyzer {
 
       // Capturar errores de stderr (warnings de librosa, etc)
       pythonProcess.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-        // Los warnings de librosa van a stderr pero no son errores fatales
+        const stderrText = data.toString();
+        errorOutput += stderrText;
+        // Imprimir logs de IA en tiempo real (Groq/Gemini status)
+        process.stderr.write(stderrText);
       });
 
       // Manejar cierre del proceso

@@ -5,21 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Registro - WAVAULT</title>
   <link rel="stylesheet" href="assets/css/style.css"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
 </head>
 <body>
-  <main class="auth-container">
-    <h2>Crear Cuenta</h2>
-    <form id="registerForm">
-      <input type="email" id="regEmail" placeholder="Correo electrónico" required />
-      <input type="password" id="regPassword" placeholder="Contraseña" required />
-      <select id="regRol" required>
-        <option value="" disabled selected>Selecciona tu rol</option>
-        <option value="cliente">Cliente</option>
-        <option value="productor">Productor</option>
-      </select>
-      <button type="submit">Registrarse</button>
-    </form>
-    <p>¿Ya tienes cuenta? <a href="login.html">Inicia sesión</a></p>
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <i class="fas fa-compact-disc"></i>
+        <span>WAVAULT</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div style="background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+      <div class="auth-container">
+        <h2><i class="fas fa-user-plus" style="margin-right: 0.5rem;"></i>Crear Cuenta</h2>
+        <p class="subtitle">Únete a la comunidad WAVAULT</p>
+        
+        <form id="registerForm">
+          <div class="form-group">
+            <label for="regEmail"><i class="fas fa-envelope"></i> Correo Electrónico</label>
+            <input type="email" id="regEmail" placeholder="tu@email.com" required />
+          </div>
+          <div class="form-group">
+            <label for="regPassword"><i class="fas fa-lock"></i> Contraseña</label>
+            <input type="password" id="regPassword" placeholder="••••••••" required />
+          </div>
+          <div class="form-group">
+            <label for="regRol"><i class="fas fa-user-tag"></i> ¿Cuál es tu rol?</label>
+            <select id="regRol" required>
+              <option value="" disabled selected>Selecciona tu rol</option>
+              <option value="cliente">🎵 Cliente (Comprar beats)</option>
+              <option value="productor">🎚️ Productor (Vender beats)</option>
+            </select>
+          </div>
+          <button type="submit">Crear Cuenta</button>
+        </form>
+        
+        <div class="auth-link">
+          ¿Ya tienes cuenta? <a href="login.html">Inicia sesión aquí</a>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script>

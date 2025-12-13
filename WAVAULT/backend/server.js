@@ -5,6 +5,9 @@ const multer = require("multer");
 const db = require("./db");
 const { spawn } = require("child_process");
 
+// ✅ Cargar variables de entorno desde .env
+require('dotenv').config();
+
 const app = express();
 const port = 3000;
 
@@ -24,12 +27,35 @@ const storage = multer.diskStorage({
     cb(null, uniqueName);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { 
+    fileSize: 100 * 1024 * 1024 // 100 MB max por archivo de audio
+  },
+  fileFilter: (req, file, cb) => {
+    // Validar tamaño según tipo de archivo
+    if (file.fieldname === 'cover') {
+      // Límite de 5MB para imágenes
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return cb(new Error('La imagen de portada no puede exceder 5 MB'));
+      }
+    } else if (file.fieldname === 'audio') {
+      // Límite de 100MB para audio
+      const maxSize = 100 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return cb(new Error('El archivo de audio no puede exceder 100 MB'));
+      }
+    }
+    cb(null, true);
+  }
+});
 
 // ===================
 // ✅ MIDDLEWARES
 // ===================
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use("/uploads", express.static(path.join(__dirname, "..", "public", "uploads")));
 
@@ -41,7 +67,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/WAVAULT/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "client.html"));
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
 app.get("/upload-beat", (req, res) => {
@@ -95,85 +121,22 @@ app.post("/login", (req, res) => {
 // ==========================
 // ✅ SUBIDA DE BEATS (POST)
 // ==========================
-app.post("/upload-beat", upload.single("audio"), (req, res) => {
-  const { beat_name, beat_type, reference, key, bpm, mood, tags, price, description, producer } = req.body;
-  const audioFile = req.file;
-
-  // ✅ Validar campos requeridos
-  if (!beat_name || !beat_type || !key || !bpm || !price || !producer || !audioFile) {
-    return res.status(400).json({ 
-      success: false,
-      error: "Faltan campos o archivos requeridos." 
-    });
-  }
-
-  // ✅ Validar tags (mínimo 3, máximo 30)
-  const tagsArray = typeof tags === 'string' 
-    ? tags.split(',').map(t => t.trim()).filter(t => t) 
-    : Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(t => t) : [];
-  
-  if (tagsArray.length < 3) {
-    return res.status(400).json({ success: false, error: "Mínimo 3 tags requeridos." });
-  }
-  
-  if (tagsArray.length > 30) {
-    return res.status(400).json({ success: false, error: "Máximo 30 tags permitidos." });
-  }
-
-  const tagsStr = tagsArray.join(',');
-  const audioPath = `uploads/audio/${audioFile.filename}`;
-  const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
-
-  console.log("✅ Beat guardado:");
-  console.log("   📝 Nombre:", beat_name);
-  console.log("   🎵 Tipo:", beat_type);
-  console.log("   🎸 Key:", key);
-  console.log("   🎵 BPM:", bpm);
-  console.log("   🏷️ Tags:", tagsStr);
-
-  db.run(
-    `INSERT INTO beats (beat_name, beat_type, reference, key, bpm, mood, tags, audio, price, description, producer)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [beat_name, beat_type, reference || null, key, bpm, mood || null, tagsStr, audioPath, price, description || null, producer],
-    function (err) {
-      if (err) {
-        console.error("❌ Error al guardar beat:", err.message);
-        return res.status(500).json({ success: false, error: "Error al guardar el beat." });
-      }
-
-      const beatId = this.lastID;
-
-      // ✅ Generar demo con marca de agua usando Python
-      if (audioFile.mimetype === "audio/mpeg" || audioFile.filename.endsWith(".mp3")) {
-        const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");
-        const scriptPath = path.join(__dirname, "generar_demo.py");
-
-        const py = spawn("python3", [scriptPath, fullAudioPath, demoPath]);
-
-        py.stdout.on("data", data => console.log("🐍 Python:", data.toString()));
-        py.stderr.on("data", data => console.error("❌ Python error:", data.toString()));
-
-        py.on("close", (code) => {
-          if (code === 0) {
-            console.log("✅ Demo generada:", demoPath);
-            const relativeDemoPath = audioPath.replace(/\.mp3$/i, "_demo.mp3");
-            db.run(`UPDATE beats SET demo = ? WHERE id = ?`, [relativeDemoPath, beatId]);
-          } else {
-            console.error("❌ Error generando demo con Python");
-          }
-        });
-      }
-
-      res.status(201).json({ success: true, id: beatId });
-    }
-  );
-});
+// NOTA: Endpoint movido a línea 585 con soporte para múltiples archivos (audio + cover)
 
 // ===================
 // ✅ OBTENER BEATS
 // ===================
 app.get("/beats", (req, res) => {
-  db.all(`SELECT * FROM beats`, [], (err, rows) => {
+  const { producer } = req.query;
+  let query = `SELECT * FROM beats`;
+  let params = [];
+  
+  if (producer) {
+    query += ` WHERE producer = ?`;
+    params.push(producer);
+  }
+  
+  db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
@@ -214,7 +177,7 @@ app.get("/ventas", (req, res) => {
 
   db.all(`
     SELECT 
-      b.id, b.title, b.cover, v.comprador_email AS comprador
+      b.id, b.title, b.cover, b.price, v.comprador_email AS comprador
     FROM ventas v
     JOIN beats b ON b.id = v.beat_id
     WHERE b.producer = ?
@@ -279,8 +242,10 @@ const AudioAIAnalyzer = require("./ai-analysis-integration");
 const analyzer = new AudioAIAnalyzer();
 
 /**
+/**
  * POST /api/analyze-beat
  * Analiza un beat subido y retorna características técnicas + IA
+ * Usa sistema V2 con 62 tags, validación de KEY y detección de artistas
  */
 app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
   try {
@@ -291,10 +256,10 @@ app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
       });
     }
 
-    console.log(`📊 Analizando beat: ${req.file.originalname}`);
+    console.log(`📊 Analizando beat con sistema V2: ${req.file.originalname}`);
     
-    // Analizar con IA, pasando el nombre original del archivo
-    const result = await analyzer.analyze(req.file.path, req.file.originalname);
+    // Analizar con IA usando sistema V2 (62 tags, validación KEY, artistas)
+    const result = await analyzer.analyze(req.file.path, req.file.originalname, true);
 
     if (result.status !== "success") {
       return res.status(500).json({
@@ -303,7 +268,10 @@ app.post("/api/analyze-beat", upload.single("audio"), async (req, res) => {
       });
     }
 
-    console.log(`✅ Beat analizado exitosamente`);
+    console.log(`✅ Beat analizado exitosamente con sistema V2`);
+    console.log(`   🏷️  Tags generados: ${result.tags?.length || 0}`);
+    console.log(`   🎵 BPM: ${result.bpm} (confidence: ${result.bpm_confidence}%)`);
+    console.log(`   🎹 KEY: ${result.key} (confidence: ${result.key_confidence}%)`);
     
     return res.json({
       success: true,
@@ -578,11 +546,11 @@ app.post("/api/enrich-beats-simple", async (req, res) => {
 });
 
 /**
- * POST /upload-beat
- * Guarda un beat en la BD después de confirmación del usuario
- * El beat SOLO se guarda si el usuario confirma en el modal
+ * POST /analyze-beat
+ * Analiza un beat con IA antes de guardarlo
+ * Retorna: key, bpm, reference_artist, genre, mood, tags, etc
  */
-app.post("/upload-beat", upload.single("audio"), async (req, res) => {
+app.post("/analyze-beat", upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -591,41 +559,227 @@ app.post("/upload-beat", upload.single("audio"), async (req, res) => {
       });
     }
 
-    const { artist, title, bpm, key, type, mood, price, description, producer } = req.body;
+    const audioFile = req.file;
+    const fullAudioPath = audioFile.path;
+    const filename = audioFile.originalname;
 
-    // Validar campos requeridos
-    if (!artist || !title || !bpm || !key || !price || !producer) {
+    console.log(`🔍 Analizando beat: ${filename}`);
+    console.log(`   📁 Ruta: ${fullAudioPath}`);
+
+    // Llamar a analyze_beat_ai.py con --v2
+    const pythonScript = path.join(__dirname, "analyze_beat_ai.py");
+    
+    return new Promise((resolve) => {
+      const py = spawn("python3", [pythonScript, fullAudioPath, filename, "--v2"]);
+      let output = "";
+      let errorOutput = "";
+
+      py.stdout.on("data", data => {
+        output += data.toString();
+      });
+
+      py.stderr.on("data", data => {
+        errorOutput += data.toString();
+        console.error("🐍 stderr:", data.toString());
+      });
+
+      py.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const analysis = JSON.parse(output);
+            console.log("✅ Análisis completado:");
+            console.log(`   🎤 Artists: ${analysis.reference_artist}`);
+            console.log(`   🎵 Key: ${analysis.key} | BPM: ${analysis.bpm}`);
+            console.log(`   🏷️  Tags: ${analysis.tags?.length || 0}`);
+
+            return res.json({
+              success: true,
+              data: analysis
+            });
+          } catch (e) {
+            console.error("❌ Error parseando análisis:", e.message);
+            return res.status(500).json({
+              success: false,
+              message: "Error parseando análisis: " + e.message
+            });
+          }
+        } else {
+          console.error(`❌ Análisis falló con código ${code}`);
+          console.error("Output:", output);
+          console.error("Error:", errorOutput);
+          return res.status(500).json({
+            success: false,
+            message: "Error en análisis IA: " + (errorOutput || "código " + code)
+          });
+        }
+      });
+
+      py.on("error", err => {
+        console.error("❌ Error ejecutando análisis:", err.message);
+        return res.status(500).json({
+          success: false,
+          message: "Error ejecutando análisis: " + err.message
+        });
+      });
+    });
+
+  } catch (error) {
+    console.error("❌ Error en /analyze-beat:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /upload-beat
+ * Guarda un beat en la BD después de confirmación del usuario
+ * Procesa el archivo con baja calidad + tag WAVAULT
+ * El beat SOLO se guarda si el usuario confirma en el modal
+ */
+app.post("/upload-beat", upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
+  try {
+    if (!req.files || !req.files.audio) {
       return res.status(400).json({
         success: false,
-        message: "Faltan campos requeridos (artist, title, bpm, key, price, producer)"
+        message: "No se proporcionó archivo de audio"
       });
     }
 
-    const audioPath = `uploads/audio/${req.file.filename}`;
+    if (!req.files.cover) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó imagen de portada"
+      });
+    }
+
+    const audioFile = req.files.audio[0];
+    const coverFile = req.files.cover[0];
+
+    const { beat_name, beat_type, reference, key, bpm, mood, price, tags, description, producer, ai_analysis } = req.body;
+
+    // Validar campos requeridos
+    if (!beat_name || !bpm || !key || !price || !producer) {
+      return res.status(400).json({
+        success: false,
+        message: "Faltan campos requeridos (beat_name, bpm, key, price, producer)"
+      });
+    }
+
+    const audioPath = `uploads/audio/${audioFile.filename}`;
+    const coverPath = `uploads/covers/${coverFile.filename}`;
     const fullAudioPath = path.join(__dirname, "..", "public", audioPath);
+    
+    // Rutas para archivo procesado (clone con baja calidad + tag)
+    const processedFilename = audioFile.filename.replace(/\.mp3$/i, "_clone.mp3");
+    const audioProcessedPath = `uploads/audio/${processedFilename}`;
+    const fullAudioProcessedPath = path.join(__dirname, "..", "public", audioProcessedPath);
 
-    console.log(`✅ Guardando beat: ${title} por ${artist}`);
-    console.log(`   🎵 Audio: ${audioPath}`);
-    console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${type}`);
+    console.log(`✅ Guardando beat: ${beat_name}`);
+    console.log(`   🎵 Audio original: ${audioPath}`);
+    console.log(`   🎵 Audio procesado: ${audioProcessedPath}`);
+    console.log(`   🖼️  Cover: ${coverPath}`);
+    console.log(`   🎵 BPM: ${bpm} | Key: ${key} | Type: ${beat_type}`);
 
-    // Insertar en BD
+    // Insertar en BD (sin audio_processed inicialmente, se actualiza después)
     db.run(
-      `INSERT INTO beats (title, artist, bpm, key, type, mood, price, tags, cover, audio, producer, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, artist, bpm, key, type, mood, price, "beat", null, audioPath, producer, description || null],
+      `INSERT INTO beats (title, bpm, key, price, tags, cover, audio, audio_processed, producer)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [beat_name, bpm, key, price, tags || "beat", coverPath, audioPath, null, producer],
       function (err) {
         if (err) {
           console.error("❌ Error al guardar beat:", err.message);
           return res.status(500).json({
             success: false,
-            message: "Error al guardar el beat en la BD"
+            message: "Error al guardar el beat en la BD: " + err.message
           });
         }
 
         const beatId = this.lastID;
         console.log(`✅ Beat guardado con ID: ${beatId}`);
 
+        // ==========================================
+        // 🔄 PROCESAR BEAT CLONE (Baja calidad + Tag)
+        // ==========================================
+        console.log(`\n🔄 Iniciando procesamiento de clone...`);
+        const processScriptPath = path.join(__dirname, "process_beat_clone.py");
+
+        if (fs.existsSync(processScriptPath)) {
+          const processPy = spawn("python3", [
+            processScriptPath,
+            fullAudioPath,
+            fullAudioProcessedPath,
+            "2000"  // Delay del tag en ms
+          ]);
+
+          let processOutput = "";
+          let processError = "";
+
+          processPy.stdout.on("data", data => {
+            const msg = data.toString();
+            processOutput += msg;
+            console.log("🐍", msg);
+          });
+
+          processPy.stderr.on("data", data => {
+            const msg = data.toString();
+            processError += msg;
+            console.error("❌", msg);
+          });
+
+          processPy.on("close", (code) => {
+            if (code === 0) {
+              console.log(`✅ Clone procesado correctamente`);
+              console.log(`   📁 Ruta: ${audioProcessedPath}`);
+              
+              // Verificar que el archivo existe
+              if (fs.existsSync(fullAudioProcessedPath)) {
+                const stats = fs.statSync(fullAudioProcessedPath);
+                console.log(`   📦 Tamaño: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+                // ✅ Ahora actualizar la BD con la ruta del clone generado
+                db.run(
+                  `UPDATE beats SET audio_processed = ? WHERE id = ?`,
+                  [audioProcessedPath, beatId],
+                  (err) => {
+                    if (err) {
+                      console.error(`⚠️  Error actualizando audio_processed:`, err.message);
+                    } else {
+                      console.log(`✅ audio_processed actualizado en BD para beat ${beatId}`);
+                    }
+                  }
+                );
+              } else {
+                console.error(`❌ Archivo clone no encontrado después de procesamiento: ${fullAudioProcessedPath}`);
+              }
+            } else {
+              console.warn(`⚠️ Procesamiento de clone finalizó con código ${code}`);
+              console.warn(`   El beat se guardó pero sin clone procesado`);
+              console.warn(`   Usuario reproducirá el archivo original`);
+            }
+          });
+
+          processPy.on("error", (err) => {
+            console.error(`❌ Error ejecutando script de procesamiento:`, err.message);
+          });
+
+        } else {
+          console.warn(`⚠️ Script de procesamiento no encontrado: ${processScriptPath}`);
+          console.warn(`   Beat guardado sin clone procesado`);
+        }
+
+        // Guardar análisis IA si está disponible
+        if (ai_analysis) {
+          try {
+            const analysisData = JSON.parse(ai_analysis);
+            console.log(`🤖 Guardando análisis IA para beat ${beatId}`);
+          } catch (e) {
+            console.error('⚠️ Error parseando ai_analysis:', e.message);
+          }
+        }
+
         // Generar demo con marca de agua (opcional)
+        console.log(`\n📝 Generando demo con marca de agua...`);
         const demoPath = fullAudioPath.replace(/\.mp3$/i, "_demo.mp3");
         const scriptPath = path.join(__dirname, "generar_demo.py");
 
@@ -639,7 +793,7 @@ app.post("/upload-beat", upload.single("audio"), async (req, res) => {
             if (code === 0) {
               const relativeDemoPath = audioPath.replace(/\.mp3$/i, "_demo.mp3");
               db.run(`UPDATE beats SET demo = ? WHERE id = ?`, [relativeDemoPath, beatId]);
-              console.log(`✅ Demo generada: ${demoPath}`);
+              console.log(`✅ Demo generada: ${relativeDemoPath}`);
             }
           });
         }
@@ -647,7 +801,9 @@ app.post("/upload-beat", upload.single("audio"), async (req, res) => {
         return res.json({
           success: true,
           message: "✅ Beat guardado exitosamente",
-          beatId: beatId
+          beatId: beatId,
+          audio: audioPath,
+          note: "Clone se procesa en background. Refresca para verlo disponible para reproducción con calidad reducida."
         });
       }
     );
@@ -671,6 +827,11 @@ app.use((req, res) => {
 // ===================
 // ✅ INICIAR SERVIDOR
 // ===================
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${port}`);
 });
+
+// ⏱️ Timeouts ajustados para mejor UX (120 segundos)
+server.timeout = 120000; // 120 segundos
+server.keepAliveTimeout = 125000; // 5 segundos más que timeout
+server.headersTimeout = 126000; // 1 segundo más que keepAliveTimeout

@@ -80,23 +80,33 @@ WAVAULT-V2/
 
 ---
 
-## 🚀 Inicio Rápido
+## 🚀 Inicio Rápido (clonado fresco)
 
 ```bash
-cd /workspaces/WAVAULT-V2/WAVAULT
+cd /workspaces/WAVAULT-V2
 
-# 1. Instalar dependencias
+# 1) Instalar dependencias
 npm install
 
-# 2. Configurar .env con Gemini API key
-echo "GEMINI_API_KEY=tu_clave_aqui" > backend/.env
+# 2) Iniciar servidor
+./start_server.sh
 
-# 3. Ejecutar servidor
-npm start
-
-# 4. Abrir en navegador
-# http://localhost:3000/upload-beat
+# 3) Abrir en navegador
+# http://localhost:3000
 ```
+
+Notas rápidas:
+- El player global está simplificado a controles de reproducción/loop/volumen (playlist y shuffle deshabilitados).
+- Si el puerto 3000 está ocupado, libera con `lsof -ti:3000 | xargs kill -9` antes de ejecutar el script.
+
+## ✅ Requisitos y complicaciones conocidas
+
+- Node.js 14+ y npm instalados.
+- Ejecuta siempre `npm install` tras clonar (dependencias en `package.json`).
+- Asegura permisos de ejecución al script: `chmod +x start_server.sh` si fuera necesario.
+- Puerto 3000 libre. Si algo ya corre, libera con `lsof -ti:3000 | xargs kill -9` y vuelve a lanzar `./start_server.sh`.
+- Si falla el autoplay en el navegador, realiza una interacción (click) antes de reproducir para evitar bloqueo de autoplay.
+- Los assets de ejemplo (covers/audio) no son requeridos para arrancar; la app levanta sin ellos.
 
 ---
 
