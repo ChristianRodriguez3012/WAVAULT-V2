@@ -298,12 +298,66 @@
     .confidence-high { background: linear-gradient(90deg, #10b981, #059669); }
     .confidence-medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
     .confidence-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .confidence-none { background: linear-gradient(90deg, #cbd5e1, #94a3b8); }
   </style>
   <script>
-    const usuarioActivo = JSON.parse(localStorage.getItem('usuarioActivo'));
-    if (!usuarioActivo || usuarioActivo.rol !== 'productor') {
-      window.location.href = '../login.html';
+    // Mapeo seguro: copia valores de los inputs IA (#bpm, #key, #mood, #genre, #beatName, #reference, #tags, #description)
+    // hacia los campos del formulario principal (#bpmField, #keyField, #beatType, etc.) SOLO si están vacíos.
+    function copyAIValuesToMainForm() {
+      const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+      const setIfEmpty = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
+
+      const bpm = getVal('bpm');
+      const key = getVal('key');
+      const mood = getVal('mood');
+      const genre = getVal('genre');
+      const name = getVal('beatName');
+      const ref = getVal('reference');
+      const tags = getVal('tags');
+      const desc = getVal('description');
+
+      setIfEmpty('bpmField', bpm);
+      setIfEmpty('keyField', key);
+      // Si hay genre, normaliza a "{genre} Type Beat" si el campo está vacío
+      const typeBeat = genre ? (genre.includes('Type Beat') ? genre : `${genre} Type Beat`) : '';
+      setIfEmpty('beatType', typeBeat);
+      setIfEmpty('beatName', name);
+      setIfEmpty('reference', ref);
+      setIfEmpty('tags', tags);
+      setIfEmpty('description', desc);
     }
+
+    // Variante directa desde el objeto de análisis V2
+    function copyAIValuesFromAnalysis(analysis) {
+      if (!analysis) return;
+      const setIfEmpty = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
+      // Nombre del beat y artistas de referencia desde V2
+      setIfEmpty('beatName', analysis.beat_name);
+      setIfEmpty('reference', analysis.reference_artist);
+    }
+
+    // Observa la sección de progreso y copia los valores cuando el análisis completa
+    document.addEventListener('DOMContentLoaded', () => {
+      const progressText = document.getElementById('progressText');
+      if (progressText) {
+        const observer = new MutationObserver(() => {
+          const txt = progressText.textContent || '';
+          if (txt.includes('Completar') || txt.includes('Metadatos')) {
+            // Intento de copia tras análisis
+            copyAIValuesToMainForm();
+          }
+        });
+        observer.observe(progressText, { childList: true, characterData: true, subtree: true });
+      }
+    });
+    // Validación de sesión: solo productores
+    let usuarioActivo = null;
+    try {
+      usuarioActivo = JSON.parse(localStorage.getItem('usuarioActivo'));
+      if (!usuarioActivo || usuarioActivo.rol !== 'productor') {
+        window.location.href = '../login.html';
+      }
+    } catch (e) { console.warn('Validación de sesión falló', e); }
   </script>
 </head>
 <body class="clean-layout">
@@ -909,6 +963,14 @@
           if (hasTechnicalData) {
             displayAIResults(result.analysis);
             prefillFormWithAI(result.analysis);
+            // Ejecuta el mapeo directo usando los datos de análisis para nombre y artistas.
+            try {
+              if (typeof copyAIValuesFromAnalysis === 'function') {
+                copyAIValuesFromAnalysis(result.analysis);
+              } else if (typeof copyAIValuesToMainForm === 'function') {
+                copyAIValuesToMainForm();
+              }
+            } catch (e) { console.warn('copyAIValues post-prefill error', e); }
             
             // Completar paso de metadatos
             if (progressSection) {
@@ -1136,17 +1198,24 @@
       tableHTML += '</tr></thead><tbody>';
 
       metadata.forEach((item, index) => {
-        const conf = parseFloat(item.confidence) || 0;
+        const conf = Math.max(0, Math.min(1, parseFloat(item.confidence) || 0));
         const confPercent = (conf * 100).toFixed(0);
         let confClass = 'confidence-low';
         let confColor = '#ef4444';
-        
-        if (conf >= 0.7) {
+        let confLabel = 'Baja';
+
+        if (conf === 0) {
+          confClass = 'confidence-none';
+          confColor = '#64748b';
+          confLabel = 'Sin dato';
+        } else if (conf >= 0.7) {
           confClass = 'confidence-high';
           confColor = '#10b981';
+          confLabel = 'Alta';
         } else if (conf >= 0.4) {
           confClass = 'confidence-medium';
           confColor = '#f59e0b';
+          confLabel = 'Media';
         }
 
         // Icono y color de fuente
@@ -1190,8 +1259,8 @@
         tableHTML += `</td>`;
         tableHTML += `<td style="padding: 0.75rem;">`;
         tableHTML += `<div style="display: flex; align-items: center; gap: 0.5rem;">`;
-        tableHTML += `<span style="font-weight: 600; color: ${confColor}; min-width: 40px;">${confPercent}%</span>`;
-        tableHTML += `<div class="confidence-bar" style="flex: 1;"><div class="confidence-fill ${confClass}" style="width: ${confPercent}%;"></div></div>`;
+        tableHTML += `<span style="font-weight: 600; color: ${confColor}; min-width: 80px;" title="${confPercent}%">${confLabel}</span>`;
+        tableHTML += `<div class="confidence-bar" style="flex: 1;"><div class="confidence-fill ${confClass}" style="width: ${conf === 0 ? 4 : confPercent}%;"></div></div>`;
         tableHTML += `</div></td></tr>`;
       });
 
@@ -1384,6 +1453,14 @@
         return;
       }
 
+      // Validación estricta de portada
+      if (!uploadedCover) {
+        showNotification('⚠️ Debes subir una portada (arte) para continuar.', 'error');
+        const coverInput = document.getElementById('coverFile');
+        if (coverInput) coverInput.focus();
+        return;
+      }
+
       // Mostrar barra de progreso
       const progressSection = document.getElementById('uploadProgressSection');
       progressSection.style.display = 'block';
@@ -1420,6 +1497,11 @@
       formData.append('description', document.getElementById('description').value);
       formData.append('audio', uploadedFile);
       formData.append('cover', uploadedCover);
+      if (!usuarioActivo || !usuarioActivo.email) {
+        showNotification('⚠️ Sesión inválida. Inicia sesión para subir el beat.', 'error');
+        updateUploadStatus('Sesión inválida', 0);
+        return;
+      }
       formData.append('producer', usuarioActivo.email);
 
       if (aiAnalysisData) {
@@ -1453,7 +1535,15 @@
             document.getElementById('uploadPercent').textContent = '100%';
 
             setTimeout(() => {
-              showNotification('✅ ¡Beat subido exitosamente!', 'success');
+              // Aviso visual de éxito + detalle del ID
+              const successMsg = result && result.beatId ? `✅ Beat subido exitosamente (ID ${result.beatId})` : '✅ ¡Beat subido exitosamente!';
+              showNotification(successMsg, 'success');
+              const toast = document.getElementById('globalToast');
+              if (toast) {
+                toast.textContent = successMsg;
+                toast.style.display = 'block';
+                setTimeout(() => { toast.style.display = 'none'; }, 3000);
+              }
               document.getElementById('uploadForm').reset();
               document.getElementById('fileInfo').style.display = 'none';
               document.getElementById('aiResults').style.display = 'none';

@@ -279,11 +279,17 @@ function renderizarHistorial() {
     const fecha = new Date(compra.fecha).toLocaleDateString();
     const div = document.createElement('div');
     div.style.cssText = 'background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;';
+    const beatsHtml = compra.beats.map(b => {
+      const originalPath = b.audio ? (b.audio.startsWith('/') ? b.audio : `/${b.audio}`) : null;
+      const downloadLink = originalPath ? `<a href="${originalPath}" download style="color: #10b981; font-weight: 600; text-decoration: none;">⬇️ Descargar original</a>` : '<span style="color: #94a3b8;">Sin archivo original</span>';
+      return `<p style="margin: 0.25rem 0;">• ${b.title} - ${b.producer || 'Productor'}<br>${downloadLink}</p>`;
+    }).join('');
+
     div.innerHTML = `
       <h4 style="margin: 0 0 1rem 0; color: #1e293b;">Compra del ${fecha}</h4>
       <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #6366f1;">Total: $${compra.total.toFixed(2)}</p>
       <div style="color: #64748b;">
-        ${compra.beats.map(b => `<p style="margin: 0.25rem 0;">• ${b.title} - ${b.producer}</p>`).join('')}
+        ${beatsHtml}
       </div>
     `;
     contenedor.appendChild(div);
